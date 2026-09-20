@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, LogOut, Check, Hourglass, Crown, X, Shield } from 'lucide-react';
+import { Users, LogOut, Check, Hourglass, Crown, X, Shield, Upload, Image as ImageIcon } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
 import TeamCard from './TeamCard';
@@ -34,6 +34,10 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const [msg, setMsg] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [teamName, setTeamName] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const loadTeams = async () => {
     const { data: rawTeams } = await supabase
@@ -107,41 +111,80 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const isCaptain = myTeam?.players[0]?.id === user.user_id;
   const myPlayersCount = myTeam?.players.length ?? 0;
 
-  // Открыть модалку создания команды
   const openCreateModal = () => {
     if (!user.standoff_id) {
-      hapticError();
-      setMsg('Сначала добавь Standoff ID в профиле');
-      return;
+      hapticError(); setMsg('Сначала добавь Standoff ID в профиле'); return;
     }
     if (myTeam) { hapticError(); setMsg('Ты уже в команде'); return; }
     if (teams.length >= maxTeams) { hapticError(); setMsg('Все места заняты'); return; }
 
     setTeamName(user.nickname || user.first_name || '');
+    setLogoFile(null);
+    setLogoPreview(null);
     setShowCreateModal(true);
   };
 
-  // Создать новую команду
-  const createTeam = async () => {
-    if (!teamName.trim() || teamName.trim().length < 2) {
+  const pickLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
       hapticError();
-      setMsg('Название минимум 2 символа');
+      setMsg('Логотип максимум 3MB');
       return;
     }
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const uploadLogo = async (): Promise<string | null> => {
+    if (!logoFile) return null;
+    const ext = logoFile.name.split('.').pop() || 'png';
+    const path = `teams/${user.user_id}_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from('standoff')
+      .upload(path, logoFile, { upsert: true, cacheControl: '3600' });
+
+    if (error) {
+      console.error('upload logo error:', error);
+      return null;
+    }
+
+    const { data } = supabase.storage.from('standoff').getPublicUrl(path);
+    return data.publicUrl + '?t=' + Date.now();
+  };
+
+  const createTeam = async () => {
+    if (!teamName.trim() || teamName.trim().length < 2) {
+      hapticError(); setMsg('Название минимум 2 символа'); return;
+    }
     if (teamName.trim().length > 30) {
-      hapticError();
-      setMsg('Название максимум 30 символов');
-      return;
+      hapticError(); setMsg('Название максимум 30 символов'); return;
     }
 
     setJoining(true);
     haptic('medium');
 
+    // 1. Загружаем логотип если есть
+    let logoUrl: string | null = null;
+    if (logoFile) {
+      setUploading(true);
+      logoUrl = await uploadLogo();
+      setUploading(false);
+      if (!logoUrl) {
+        hapticError();
+        setMsg('Ошибка загрузки логотипа');
+        setJoining(false);
+        return;
+      }
+    }
+
+    // 2. Создаём команду
     const { error } = await supabase.from('teams').insert({
       tournament_id: tournamentId,
       player1_id: user.user_id,
       captain_id: user.user_id,
       team_name: teamName.trim(),
+      logo_url: logoUrl,
       side: Math.random() < 0.5 ? 'left' : 'right',
     });
 
@@ -150,17 +193,14 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       setMsg(error.message);
     } else {
       hapticSuccess();
-      setMsg(`Команда "${teamName.trim()}" создана! Ждём ещё игроков.`);
+      setMsg(`Команда "${teamName.trim()}" создана!`);
       setShowCreateModal(false);
     }
     setJoining(false);
   };
 
-  // Присоединиться к неполной команде
   const joinExistingTeam = async () => {
-    if (!user.standoff_id) {
-      hapticError(); setMsg('Сначала добавь Standoff ID в профиле'); return;
-    }
+    if (!user.standoff_id) { hapticError(); setMsg('Сначала добавь Standoff ID в профиле'); return; }
     if (myTeam) { hapticError(); setMsg('Ты уже в команде'); return; }
     if (teams.length >= maxTeams) { hapticError(); setMsg('Все места заняты'); return; }
 
@@ -187,7 +227,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       if (error) { hapticError(); setMsg(error.message); }
       else { hapticSuccess(); setMsg('Ты присоединился к команде'); }
     } else {
-      // Нет неполных — открываем модалку создания
       setShowCreateModal(true);
     }
     setJoining(false);
@@ -281,7 +320,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </motion.div>
       )}
 
-      {/* Моя команда */}
       {!myTeam ? (
         <div className="space-y-2">
           <button
@@ -317,21 +355,13 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
                 Капитан
               </span>
             )}
-            <span className="text-black text-sm font-bold">
-              {myTeam.name}
-            </span>
+            <span className="text-black text-sm font-bold">{myTeam.name}</span>
           </div>
           <div className="text-muted text-xs mb-3 flex items-center gap-1.5">
             {myPlayersCount === MAX_PLAYERS ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-success" />
-                Состав полный ({myPlayersCount}/{MAX_PLAYERS})
-              </>
+              <><Check className="w-3.5 h-3.5 text-success" /> Состав полный ({myPlayersCount}/{MAX_PLAYERS})</>
             ) : (
-              <>
-                <Hourglass className="w-3.5 h-3.5 text-orange" />
-                Ждём ещё {MAX_PLAYERS - myPlayersCount} игроков
-              </>
+              <><Hourglass className="w-3.5 h-3.5 text-orange" /> Ждём ещё {MAX_PLAYERS - myPlayersCount} игроков</>
             )}
           </div>
           <button
@@ -344,7 +374,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </motion.div>
       )}
 
-      {/* Список команд */}
       <div className="space-y-2">
         <div className="text-muted text-[10px] uppercase tracking-widest px-1 font-bold">
           Команды ({teams.length})
@@ -376,14 +405,14 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6"
-            onClick={() => setShowCreateModal(false)}
+            onClick={() => !joining && setShowCreateModal(false)}
           >
             <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl"
+              className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto"
             >
               <div className="p-5 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -393,19 +422,57 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
                   <div>
                     <div className="text-black font-black text-base">Создать команду</div>
                     <div className="text-muted text-[10px] uppercase tracking-widest font-bold">
-                      Шаг 1 из 1
+                      Заполни данные
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center"
+                  disabled={joining}
+                  className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center disabled:opacity-40"
                 >
                   <X className="w-4 h-4 text-black" />
                 </button>
               </div>
 
-              <div className="p-5 space-y-3">
+              <div className="p-5 space-y-4">
+                {/* Логотип */}
+                <div>
+                  <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-2">
+                    Логотип команды
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0 border-2 border-orange/30">
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-8 h-8 text-white/70" strokeWidth={1.5} />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <button
+                        onClick={() => fileRef.current?.click()}
+                        disabled={joining}
+                        className="w-full bg-bg2 border border-border text-black font-bold rounded-xl py-2.5 text-xs hover:border-orange transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        {logoPreview ? 'Сменить лого' : 'Загрузить лого'}
+                      </button>
+                      <div className="text-muted text-[10px] mt-1.5">
+                        PNG / JPG, до 3 МБ
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={pickLogo}
+                  />
+                </div>
+
+                {/* Название */}
                 <div>
                   <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1.5">
                     Название команды
@@ -415,8 +482,8 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
                     onChange={(e) => setTeamName(e.target.value.slice(0, 30))}
                     placeholder="Например: Virtus Pro"
                     maxLength={30}
-                    autoFocus
-                    className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm focus:border-orange transition-colors"
+                    disabled={joining}
+                    className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm focus:border-orange transition-colors disabled:opacity-50"
                   />
                   <div className="text-muted text-[10px] mt-1 text-right">
                     {teamName.length} / 30
@@ -425,10 +492,10 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
 
                 <button
                   onClick={createTeam}
-                  disabled={joining || !teamName.trim() || teamName.trim().length < 2}
+                  disabled={joining || uploading || !teamName.trim() || teamName.trim().length < 2}
                   className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors"
                 >
-                  {joining ? 'Создаём...' : 'Создать команду'}
+                  {uploading ? 'Загрузка лого...' : joining ? 'Создаём...' : 'Создать команду'}
                 </button>
 
                 <p className="text-muted text-[10px] text-center leading-relaxed">
