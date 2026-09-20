@@ -13,13 +13,13 @@ type Props = {
 export default function Bracket({ rounds, onMatchClick, currentMatchId }: Props) {
   if (rounds.length === 0) {
     return (
-      <div className="bg-card border border-border rounded-2xl p-8 text-center">
+      <div className="bg-card border border-border rounded-3xl p-8 text-center shadow-card">
         <div className="flex justify-center mb-3">
-          <div className="w-14 h-14 rounded-2xl bg-card2 border border-border flex items-center justify-center">
-            <Trophy className="w-7 h-7 text-muted" strokeWidth={1.5} />
+          <div className="w-16 h-16 rounded-2xl bg-orange/10 border border-orange/30 flex items-center justify-center">
+            <Trophy className="w-8 h-8 text-orange" strokeWidth={1.5} />
           </div>
         </div>
-        <div className="text-muted text-sm">Сетка ещё не построена</div>
+        <div className="text-muted text-sm font-medium">Сетка ещё не построена</div>
       </div>
     );
   }
@@ -37,11 +37,11 @@ export default function Bracket({ rounds, onMatchClick, currentMatchId }: Props)
           className="space-y-3"
         >
           <div className="flex items-center gap-2 px-1">
-            <div className="text-white font-bold text-[11px] uppercase tracking-[0.2em]">
+            <div className="text-orange font-black text-[11px] uppercase tracking-[0.2em]">
               {roundName(rIdx + 1, totalRounds)}
             </div>
             <div className="flex-1 h-px bg-border" />
-            <div className="text-muted text-[10px] uppercase tracking-wider">
+            <div className="text-muted text-[10px] uppercase tracking-wider font-bold">
               {round.length} {round.length === 1 ? 'матч' : 'матча'}
             </div>
           </div>
@@ -56,11 +56,11 @@ export default function Bracket({ rounds, onMatchClick, currentMatchId }: Props)
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: rIdx * 0.08 + mIdx * 0.03 }}
-                  className={`bg-bg/40 border rounded-2xl p-2 space-y-1 transition-all duration-300 ${
+                  className={`bg-bg2/50 border rounded-2xl p-2 space-y-1 transition-all duration-300 ${
                     isCurrent
-                      ? 'border-white shadow-glowStrong'
+                      ? 'border-orange shadow-orange'
                       : hasWinner
-                      ? 'border-white/20'
+                      ? 'border-orange/30'
                       : 'border-border'
                   }`}
                 >
@@ -78,7 +78,7 @@ export default function Bracket({ rounds, onMatchClick, currentMatchId }: Props)
                   <div className="flex items-center justify-center py-0.5">
                     <div className="flex items-center gap-1.5 text-muted">
                       <div className="w-6 h-px bg-border" />
-                      <Swords className="w-3 h-3" />
+                      <Swords className="w-3 h-3 text-orange" />
                       <div className="w-6 h-px bg-border" />
                     </div>
                   </div>

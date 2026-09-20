@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Users, ArrowLeft, Lock, Swords, Sparkles, ChevronRight } from 'lucide-react';
+import { Trophy, Users, ArrowLeft, Lock, Swords, Sparkles, ChevronRight, ShieldCheck } from 'lucide-react';
 import { supabase, type User, type Tournament as TTournament } from '../supabase';
 import { haptic, hapticError } from '../lib/telegram';
 import { buildBracket, type BracketMatch, type BracketTeam } from '../lib/bracket';
@@ -69,7 +69,6 @@ export default function Tournament({ user }: Props) {
     loadTournaments();
   }, []);
 
-  // Открытие лобби/турнира
   const handleOpenTournament = async (t: TTournament) => {
     if (!user.standoff_id) {
       hapticError();
@@ -79,7 +78,6 @@ export default function Tournament({ user }: Props) {
 
     haptic('medium');
 
-    // Проверяем есть ли спонсоры
     const { data: ts } = await supabase
       .from('tournament_sponsors')
       .select('sponsor_id, sponsors(*)')
@@ -90,23 +88,18 @@ export default function Tournament({ user }: Props) {
       .filter(Boolean);
 
     if (sponsors.length > 0) {
-      // Открываем модалку подписки
       setSponsorModal({ tournament: t, sponsors });
     } else {
-      // Нет спонсоров — сразу в лобби
       setView({ type: 'lobby', tournament: t });
     }
   };
 
-  // После подписки на всех спонсоров
   const handleSponsorsDone = async () => {
     if (!sponsorModal) return;
     const t = sponsorModal.tournament;
     setSponsorModal(null);
     setView({ type: 'lobby', tournament: t });
   };
-
-  // ===== Рендер =====
 
   if (view.type === 'lobby') {
     return (
@@ -158,7 +151,7 @@ export default function Tournament({ user }: Props) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="w-8 h-8 border-3 border-orange/20 border-t-orange rounded-full animate-spin" />
         <div className="text-muted text-xs uppercase tracking-widest">Загрузка турниров</div>
       </div>
     );
@@ -171,22 +164,22 @@ export default function Tournament({ user }: Props) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="bg-card2 border border-border rounded-xl p-3 text-sm text-white"
+            className="bg-danger/10 border border-danger/40 rounded-xl p-3 text-sm text-danger font-semibold"
           >
             {msg}
           </motion.div>
         )}
 
         {tournaments.length === 0 ? (
-          <div className="bg-card border border-border rounded-2xl p-8 text-center">
+          <div className="bg-card border border-border rounded-3xl p-8 text-center shadow-card">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-2xl bg-card2 border border-border flex items-center justify-center">
-                <Trophy className="w-8 h-8 text-muted" strokeWidth={1.5} />
+              <div className="w-20 h-20 rounded-3xl bg-orange/10 border border-orange/30 flex items-center justify-center">
+                <Trophy className="w-10 h-10 text-orange" strokeWidth={1.5} />
               </div>
             </div>
-            <div className="text-white font-bold mb-2">Турниров пока нет</div>
+            <div className="text-black font-black text-xl mb-2">Турниров пока нет</div>
             <p className="text-muted text-xs leading-relaxed">
-              Как только спонсоры подтвердят приз, турнир появится здесь.
+              Как только появятся турниры — они отобразятся здесь
             </p>
           </div>
         ) : (
@@ -200,7 +193,6 @@ export default function Tournament({ user }: Props) {
         )}
       </div>
 
-      {/* Модалка подписки */}
       {sponsorModal && (
         <SponsorModal
           user={user}
@@ -214,7 +206,7 @@ export default function Tournament({ user }: Props) {
   );
 }
 
-// ===== Карточка турнира =====
+// ===== КАРТОЧКА ТУРНИРА =====
 function TournamentCard({
   tournament,
   onJoin,
@@ -254,7 +246,7 @@ function TournamentCard({
 
       const { data: usersData } = await supabase
         .from('users')
-        .select('user_id, nickname, first_name, photo_url')
+        .select('user_id, nickname, first_name, photo_url, avatar_url')
         .in('user_id', Array.from(userIds));
 
       const userMap = new Map<number, any>();
@@ -270,8 +262,8 @@ function TournamentCard({
           side: t.side,
           player1_name: p1?.nickname || p1?.first_name || 'Игрок',
           player2_name: p2?.nickname || p2?.first_name || null,
-          player1_photo: p1?.photo_url ?? null,
-          player2_photo: p2?.photo_url ?? null,
+          player1_photo: p1?.avatar_url || p1?.photo_url || null,
+          player2_photo: p2?.avatar_url || p2?.photo_url || null,
         };
       });
 
@@ -306,25 +298,20 @@ function TournamentCard({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card border border-border rounded-3xl overflow-hidden hover:border-white/30 transition-colors"
+      className="bg-card border border-border rounded-3xl overflow-hidden shadow-card hover:shadow-cardHover transition-shadow"
     >
-      {/* Шапка с градиентом */}
-      <div className="relative h-32 bg-gradient-to-br from-white/10 via-white/5 to-transparent overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_60%)]" />
+      {/* Шапка с логотипом и статусом */}
+      <div className="relative h-36 bg-gradient-to-br from-orange to-orange2 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.3),transparent_60%)]" />
+        <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
 
         <div className="relative p-5 h-full flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur">
+              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur border border-white/30 flex items-center justify-center">
                 <Trophy className="w-4 h-4 text-white" strokeWidth={2} />
               </div>
-              <div
-                className={`text-[10px] px-2.5 py-1 rounded-full border font-bold uppercase tracking-wider ${
-                  full
-                    ? 'border-red-500/50 text-red-400 bg-red-500/10'
-                    : 'border-green-500/50 text-green-400 bg-green-500/10'
-                }`}
-              >
+              <div className="text-[10px] px-2.5 py-1 rounded-full bg-white/20 backdrop-blur border border-white/30 text-white font-bold uppercase tracking-wider">
                 {full ? 'Заполнен' : 'Набор'}
               </div>
             </div>
@@ -335,20 +322,23 @@ function TournamentCard({
           </div>
 
           <div>
-            <div className="text-white font-black text-lg leading-tight tracking-tight">
+            <div className="text-white font-black text-xl leading-tight tracking-tight drop-shadow-sm">
               {tournament.name}
             </div>
-            <div className="text-white/60 text-[11px] mt-0.5">
+            <div className="text-white/90 text-[11px] mt-0.5 font-medium">
               Формат 2×2 · Bo1 · {tournament.max_teams} команд
             </div>
           </div>
         </div>
       </div>
 
-      {/* Сетка-превью */}
-      <div className="p-4 border-t border-border">
-        <div className="text-muted text-[10px] uppercase tracking-widest mb-2 px-1">
-          Сетка
+      {/* Мини-сетка с замками */}
+      <div className="p-4 border-t border-border bg-bg2/40">
+        <div className="flex items-center gap-2 mb-2.5 px-1">
+          <Swords className="w-3 h-3 text-orange" />
+          <div className="text-muted text-[10px] uppercase tracking-widest font-bold">
+            Сетка
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -357,33 +347,40 @@ function TournamentCard({
             return (
               <div
                 key={i}
-                className={`rounded-xl border p-2 flex items-center gap-2 h-[42px] transition-colors ${
+                className={`rounded-xl border p-2 flex items-center gap-2 h-[46px] transition-colors ${
                   team
-                    ? 'bg-bg border-border'
-                    : 'bg-bg/40 border-dashed border-border/60'
+                    ? 'bg-white border-border shadow-sm'
+                    : 'bg-white/50 border-dashed border-border2'
                 }`}
               >
                 {team ? (
                   <>
-                    <div className="w-6 h-6 rounded-full bg-card2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-bg2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
                       {team.player1_photo ? (
                         <img src={team.player1_photo} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-[10px] text-muted">?</span>
+                        <span className="text-[10px] text-muted font-bold">
+                          {team.player1_name?.charAt(0).toUpperCase()}
+                        </span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-white text-[10px] font-semibold truncate">
+                      <div className="text-black text-[11px] font-bold truncate">
                         {team.player1_name}
                       </div>
+                      {team.player2_name && (
+                        <div className="text-muted text-[9px] truncate">
+                          {team.player2_name}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="w-6 h-6 rounded-full bg-card2/50 border border-border/60 flex items-center justify-center flex-shrink-0">
-                      <Lock className="w-3 h-3 text-muted/60" />
+                    <div className="w-7 h-7 rounded-full bg-bg2 border border-border flex items-center justify-center flex-shrink-0">
+                      <Lock className="w-3 h-3 text-muted2" />
                     </div>
-                    <div className="text-muted/60 text-[10px]">Свободно</div>
+                    <div className="text-muted text-[10px] font-medium">Свободно</div>
                   </>
                 )}
               </div>
@@ -392,21 +389,29 @@ function TournamentCard({
         </div>
 
         {teamCount > 4 && (
-          <div className="text-muted text-[10px] text-center mt-2">
+          <div className="text-orange text-[10px] text-center mt-2 font-bold">
             +{teamCount - 4} {teamCount - 4 === 1 ? 'команда' : 'команд'} ещё
           </div>
         )}
       </div>
 
-      {/* Прогресс */}
+      {/* Прогресс-бар */}
       <div className="px-4 pb-3">
-        <div className="h-1 bg-bg rounded-full overflow-hidden">
+        <div className="h-1.5 bg-bg2 rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${percent}%` }}
             transition={{ duration: 0.5 }}
-            className={`h-full ${full ? 'bg-red-500/60' : 'bg-white'}`}
+            className={`h-full ${full ? 'bg-danger' : 'bg-orange'}`}
           />
+        </div>
+        <div className="flex justify-between items-center mt-2">
+          <span className="text-muted text-[10px]">
+            {teamCount} / {tournament.max_teams} команд
+          </span>
+          <span className={`text-[10px] font-bold ${full ? 'text-danger' : 'text-orange'}`}>
+            {Math.round(percent)}%
+          </span>
         </div>
       </div>
 
@@ -419,13 +424,13 @@ function TournamentCard({
           whileTap={!full ? { scale: 0.985 } : {}}
           className={`w-full font-black rounded-2xl py-4 text-sm flex items-center justify-center gap-2 transition-all relative overflow-hidden ${
             full
-              ? 'bg-white/5 border border-border text-muted cursor-not-allowed'
-              : 'bg-white text-black shadow-glow hover:shadow-glowStrong'
+              ? 'bg-bg2 border border-border text-muted cursor-not-allowed'
+              : 'bg-orange text-white shadow-orange hover:bg-orangeDark hover:shadow-glow'
           }`}
         >
           {!full && (
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
               initial={{ x: '-100%' }}
               animate={{ x: '100%' }}
               transition={{ duration: 1.8, repeat: Infinity, repeatDelay: 2 }}
@@ -446,12 +451,20 @@ function TournamentCard({
             )}
           </span>
         </motion.button>
+
+        {/* Подсказка про спонсоров */}
+        {!full && (
+          <div className="flex items-center justify-center gap-1.5 mt-2.5 text-muted text-[10px]">
+            <ShieldCheck className="w-3 h-3" />
+            Подписка на спонсоров обязательна
+          </div>
+        )}
       </div>
     </motion.div>
   );
 }
 
-// ===== Экран сетки =====
+// ===== ЭКРАН СЕТКИ =====
 function BracketView({
   tournament,
   user,
@@ -491,7 +504,7 @@ function BracketView({
 
     const { data: usersData } = await supabase
       .from('users')
-      .select('user_id, nickname, first_name, photo_url')
+      .select('user_id, nickname, first_name, photo_url, avatar_url')
       .in('user_id', Array.from(userIds));
 
     const userMap = new Map<number, any>();
@@ -507,8 +520,8 @@ function BracketView({
         side: t.side,
         player1_name: p1?.nickname || p1?.first_name || 'Игрок 1',
         player2_name: p2?.nickname || p2?.first_name || null,
-        player1_photo: p1?.photo_url ?? null,
-        player2_photo: p2?.photo_url ?? null,
+        player1_photo: p1?.avatar_url || p1?.photo_url || null,
+        player2_photo: p2?.avatar_url || p2?.photo_url || null,
       };
     });
 
@@ -562,14 +575,14 @@ function BracketView({
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="p-2 rounded-xl bg-card border border-border hover:border-white/30 transition-colors"
+          className="p-2 rounded-xl bg-card border border-border hover:border-orange/40 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4 text-white" />
+          <ArrowLeft className="w-4 h-4 text-black" />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="text-white font-bold text-sm truncate">{tournament.name}</div>
+          <div className="text-black font-black text-sm truncate">{tournament.name}</div>
           <div className="text-muted text-[10px] uppercase tracking-widest flex items-center gap-1">
-            <Swords className="w-3 h-3" />
+            <Swords className="w-3 h-3 text-orange" />
             Сетка турнира
           </div>
         </div>
@@ -577,7 +590,7 @@ function BracketView({
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          <div className="w-8 h-8 border-3 border-orange/20 border-t-orange rounded-full animate-spin" />
           <div className="text-muted text-xs uppercase tracking-widest">Загрузка сетки</div>
         </div>
       ) : (
