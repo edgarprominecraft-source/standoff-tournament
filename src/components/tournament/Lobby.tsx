@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, LogOut, Check, Hourglass, Crown } from 'lucide-react';
+import { Users, LogOut, Check, Hourglass, Crown, X, Shield } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
 import TeamCard from './TeamCard';
@@ -32,6 +32,8 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [teamName, setTeamName] = useState('');
 
   const loadTeams = async () => {
     const { data: rawTeams } = await supabase
@@ -105,7 +107,57 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const isCaptain = myTeam?.players[0]?.id === user.user_id;
   const myPlayersCount = myTeam?.players.length ?? 0;
 
-  const joinTeam = async () => {
+  // Открыть модалку создания команды
+  const openCreateModal = () => {
+    if (!user.standoff_id) {
+      hapticError();
+      setMsg('Сначала добавь Standoff ID в профиле');
+      return;
+    }
+    if (myTeam) { hapticError(); setMsg('Ты уже в команде'); return; }
+    if (teams.length >= maxTeams) { hapticError(); setMsg('Все места заняты'); return; }
+
+    setTeamName(user.nickname || user.first_name || '');
+    setShowCreateModal(true);
+  };
+
+  // Создать новую команду
+  const createTeam = async () => {
+    if (!teamName.trim() || teamName.trim().length < 2) {
+      hapticError();
+      setMsg('Название минимум 2 символа');
+      return;
+    }
+    if (teamName.trim().length > 30) {
+      hapticError();
+      setMsg('Название максимум 30 символов');
+      return;
+    }
+
+    setJoining(true);
+    haptic('medium');
+
+    const { error } = await supabase.from('teams').insert({
+      tournament_id: tournamentId,
+      player1_id: user.user_id,
+      captain_id: user.user_id,
+      team_name: teamName.trim(),
+      side: Math.random() < 0.5 ? 'left' : 'right',
+    });
+
+    if (error) {
+      hapticError();
+      setMsg(error.message);
+    } else {
+      hapticSuccess();
+      setMsg(`Команда "${teamName.trim()}" создана! Ждём ещё игроков.`);
+      setShowCreateModal(false);
+    }
+    setJoining(false);
+  };
+
+  // Присоединиться к неполной команде
+  const joinExistingTeam = async () => {
     if (!user.standoff_id) {
       hapticError(); setMsg('Сначала добавь Standoff ID в профиле'); return;
     }
@@ -135,16 +187,8 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       if (error) { hapticError(); setMsg(error.message); }
       else { hapticSuccess(); setMsg('Ты присоединился к команде'); }
     } else {
-      const captainName = user.nickname || user.first_name || 'Команда';
-      const { error } = await supabase.from('teams').insert({
-        tournament_id: tournamentId,
-        player1_id: user.user_id,
-        captain_id: user.user_id,
-        team_name: captainName,
-        side: Math.random() < 0.5 ? 'left' : 'right',
-      });
-      if (error) { hapticError(); setMsg(error.message); }
-      else { hapticSuccess(); setMsg('Ты создал команду. Ждём ещё игроков.'); }
+      // Нет неполных — открываем модалку создания
+      setShowCreateModal(true);
     }
     setJoining(false);
   };
@@ -193,8 +237,11 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     );
   }
 
+  const hasIncompleteTeam = teams.some((t) => t.players.length < MAX_PLAYERS);
+
   return (
     <div className="space-y-4">
+      {/* Шапка лобби */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -211,7 +258,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
           </div>
         </div>
         <div className="relative text-white/90 text-xs font-medium">
-          Собери команду 5×5. Если ты один — найдём тиммейтов.
+          Создай команду или присоединись к существующей
         </div>
 
         <div className="relative mt-3 h-2 bg-white/20 rounded-full overflow-hidden">
@@ -234,14 +281,29 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </motion.div>
       )}
 
+      {/* Моя команда */}
       {!myTeam ? (
-        <button
-          onClick={joinTeam}
-          disabled={joining || teams.length >= maxTeams}
-          className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors"
-        >
-          {teams.length >= maxTeams ? 'Мест нет' : joining ? 'Вход...' : 'Войти в лобби'}
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={openCreateModal}
+            disabled={joining || teams.length >= maxTeams}
+            className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors flex items-center justify-center gap-2"
+          >
+            <Shield className="w-4 h-4" />
+            {teams.length >= maxTeams ? 'Мест нет' : 'Создать команду'}
+          </button>
+
+          {hasIncompleteTeam && (
+            <button
+              onClick={joinExistingTeam}
+              disabled={joining}
+              className="w-full bg-white border-2 border-border text-black font-black rounded-2xl py-4 text-sm disabled:opacity-40 hover:border-orange transition-colors flex items-center justify-center gap-2"
+            >
+              <Users className="w-4 h-4" />
+              Присоединиться к команде
+            </button>
+          )}
+        </div>
       ) : (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -255,7 +317,9 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
                 Капитан
               </span>
             )}
-            <span className="text-black text-sm font-bold">Ты в команде</span>
+            <span className="text-black text-sm font-bold">
+              {myTeam.name}
+            </span>
           </div>
           <div className="text-muted text-xs mb-3 flex items-center gap-1.5">
             {myPlayersCount === MAX_PLAYERS ? (
@@ -280,9 +344,10 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </motion.div>
       )}
 
+      {/* Список команд */}
       <div className="space-y-2">
         <div className="text-muted text-[10px] uppercase tracking-widest px-1 font-bold">
-          Команды
+          Команды ({teams.length})
         </div>
         <AnimatePresence>
           {teams.map((t) => (
@@ -298,10 +363,82 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </AnimatePresence>
         {teams.length === 0 && (
           <div className="bg-card border border-border rounded-xl p-4 text-center text-muted text-xs font-medium">
-            Пока никто не зашёл
+            Пока никто не зашёл — будь первым
           </div>
         )}
       </div>
+
+      {/* Модалка создания команды */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6"
+            onClick={() => setShowCreateModal(false)}
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl"
+            >
+              <div className="p-5 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange/10 border border-orange/30 flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-orange" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <div className="text-black font-black text-base">Создать команду</div>
+                    <div className="text-muted text-[10px] uppercase tracking-widest font-bold">
+                      Шаг 1 из 1
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center"
+                >
+                  <X className="w-4 h-4 text-black" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                <div>
+                  <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1.5">
+                    Название команды
+                  </label>
+                  <input
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value.slice(0, 30))}
+                    placeholder="Например: Virtus Pro"
+                    maxLength={30}
+                    autoFocus
+                    className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm focus:border-orange transition-colors"
+                  />
+                  <div className="text-muted text-[10px] mt-1 text-right">
+                    {teamName.length} / 30
+                  </div>
+                </div>
+
+                <button
+                  onClick={createTeam}
+                  disabled={joining || !teamName.trim() || teamName.trim().length < 2}
+                  className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors"
+                >
+                  {joining ? 'Создаём...' : 'Создать команду'}
+                </button>
+
+                <p className="text-muted text-[10px] text-center leading-relaxed">
+                  Ты станешь капитаном. Друзья смогут присоединиться к команде.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
