@@ -306,19 +306,52 @@ async def cb_force_start(call: types.CallbackQuery):
         await call.answer("Не найден", show_alert=True)
         return
 
-    sb.table("tournaments").update({"status": "active"}).eq("id", t_id).execute()
-    teams_res = sb.table("teams").select("id").eq("tournament_id", t_id).execute()
-    teams_count = len(teams_res.data or [])
+    import random
+    teams_res = sb.table("teams").select("*").eq("tournament_id", t_id).execute()
+    teams = teams_res.data or []
 
-    await call.answer("Запущен!", show_alert=True)
+    if len(teams) < 2:
+        await call.answer("Мало команд (минимум 2). Зарегистрируй игроков.", show_alert=True)
+        return
+
+    if t.get("status") == "active":
+        await call.answer("Уже запущен", show_alert=True)
+        return
+
+    sb.table("tournaments").update({"status": "active"}).eq("id", t_id).execute()
+    sb.table("matches").delete().eq("tournament_id", t_id).execute()
+
+    random.shuffle(teams)
+
+    size = 1
+    while size < len(teams):
+        size *= 2
+
+    padded = list(teams)
+    while len(padded) < size:
+        padded.append(None)
+
+    matches_created = 0
+    for i in range(0, len(padded), 2):
+        t1 = padded[i]
+        t2 = padded[i + 1]
+        sb.table("matches").insert({
+            "tournament_id": t_id,
+            "team1_id": t1["id"] if t1 else None,
+            "team2_id": t2["id"] if t2 else None,
+            "status": "pending",
+        }).execute()
+        matches_created += 1
+
+    await call.answer(f"Запущен! Создано {matches_created} матчей", show_alert=True)
     await safe_edit(
         call.message,
-        f"🚀 Турнир <b>{escape_html(t['name'])}</b> запущен!\n\n👥 Команд: <b>{teams_count}</b>",
+        f"Турнир <b>{escape_html(t['name'])}</b> запущен!\n\n"
+        f"Команд: <b>{len(teams)}</b>\n"
+        f"Матчей в 1-м раунде: <b>{matches_created}</b>\n\n"
+        f"Сетка на сайте обновилась.",
         admin_back_kb()
-    )
-
-
-@router.callback_query(F.data.startswith("admin:t:finish:"))
+    )@router.callback_query(F.data.startswith("admin:t:finish:"))
 async def cb_tournament_finish(call: types.CallbackQuery):
     if not await guard(call):
         return
