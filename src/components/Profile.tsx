@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Coins, Palette, User as UserIcon, AlertTriangle, Camera, Check, X,
   Crown, Shield, Headphones, Users as UsersIcon, Settings as SettingsIcon,
-  Eye, EyeOff, Moon, Sun, Target, Zap, Heart,
+  Eye, EyeOff, Moon, Sun, Target, Zap, Heart, Swords, ChevronRight,
+  Trophy, UserPlus, MessageCircle, Calendar,
 } from 'lucide-react';
 import { supabase, type User } from '../supabase';
 import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
@@ -26,12 +27,16 @@ export default function Profile({ user, setUser }: Props) {
   const [showCustomize, setShowCustomize] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showEditNick, setShowEditNick] = useState(false);
+  const [showFullProfile, setShowFullProfile] = useState(false);
   const [stats, setStats] = useState({ matches: 0, wins: 0, losses: 0, kills: 0, deaths: 0, assists: 0 });
+  const [friendsCount, setFriendsCount] = useState(0);
+  const [clanName, setClanName] = useState<string | null>(null);
+  const [recentMatches, setRecentMatches] = useState<any[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Загружаем статистику
-  useState(() => {
+  useEffect(() => {
     (async () => {
+      // Стата
       const { data } = await supabase
         .from('users')
         .select('wins, losses, kills, deaths, matches_played')
@@ -47,8 +52,35 @@ export default function Profile({ user, setUser }: Props) {
           assists: 0,
         });
       }
+
+      // Друзья
+      const { count: fCount } = await supabase
+        .from('friends')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.user_id);
+      setFriendsCount(fCount || 0);
+
+      // Клан
+      if (user.clan_id) {
+        const { data: c } = await supabase
+          .from('clans')
+          .select('name, tag')
+          .eq('id', user.clan_id)
+          .maybeSingle();
+        if (c) setClanName(`${c.name} [${c.tag}]`);
+      }
+
+      // Последние матчи
+      const { data: matches } = await supabase
+        .from('matches')
+        .select('*')
+        .or(`team1_id.eq.${user.user_id},team2_id.eq.${user.user_id}`)
+        .eq('status', 'done')
+        .order('id', { ascending: false })
+        .limit(5);
+      setRecentMatches(matches || []);
     })();
-  });
+  }, [user.user_id, user.clan_id]);
 
   const kd = stats.deaths > 0 ? (stats.kills / stats.deaths) : stats.kills;
   const kpr = stats.matches > 0 ? (stats.kills / stats.matches) : 0;
@@ -141,29 +173,29 @@ export default function Profile({ user, setUser }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Шапка профиля */}
+      {/* ===== ШАПКА ===== */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-card border border-border rounded-3xl overflow-hidden shadow-card"
       >
-        <div className={`h-24 ${currentBanner?.css || 'bg-gradient-to-br from-orange to-orange2'} relative`}>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.3),transparent_65%)]" />
+        <div className={`h-28 ${currentBanner?.css || 'bg-gradient-to-br from-orange to-orange2'} relative`}>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.35),transparent_65%)]" />
         </div>
 
-        <div className="px-5 pb-5 -mt-12">
+        <div className="px-5 pb-5 -mt-14">
           <div className="flex items-end justify-between mb-3">
             <div className="relative">
-              <div className={`w-24 h-24 rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center ${currentFrame?.style || ''}`}>
+              <div className={`w-28 h-28 rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center ${currentFrame?.style || ''}`}>
                 {user.avatar_url || user.photo_url ? (
                   <img src={user.avatar_url || user.photo_url || ''} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <UserIcon className="w-10 h-10 text-muted" strokeWidth={1.5} />
+                  <UserIcon className="w-12 h-12 text-muted" strokeWidth={1.5} />
                 )}
               </div>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-orange text-white flex items-center justify-center shadow-orange hover:bg-orangeDark transition-colors"
+                className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-orange text-white flex items-center justify-center shadow-orange hover:bg-orangeDark transition-colors border-2 border-white"
               >
                 <Camera className="w-4 h-4" />
               </button>
@@ -172,15 +204,13 @@ export default function Profile({ user, setUser }: Props) {
             <div className="flex gap-1.5">
               <button
                 onClick={() => { haptic('light'); setShowCustomize(true); }}
-                className="w-9 h-9 rounded-xl bg-orange/10 border border-orange/30 flex items-center justify-center text-orange hover:bg-orange/20 transition-colors"
-                title="Оформить"
+                className="w-10 h-10 rounded-xl bg-orange/10 border border-orange/30 flex items-center justify-center text-orange hover:bg-orange/20 transition-colors"
               >
                 <Palette className="w-4 h-4" />
               </button>
               <button
                 onClick={() => { haptic('light'); setShowSettings(true); }}
-                className="w-9 h-9 rounded-xl bg-bg2 border border-border flex items-center justify-center text-muted hover:border-orange/40 transition-colors"
-                title="Настройки"
+                className="w-10 h-10 rounded-xl bg-bg2 border border-border flex items-center justify-center text-muted hover:border-orange/40 transition-colors"
               >
                 <SettingsIcon className="w-4 h-4" />
               </button>
@@ -199,39 +229,95 @@ export default function Profile({ user, setUser }: Props) {
             {user.rank && <RankBadge rankId={user.rank} size="md" />}
           </div>
 
-          {user.standoff_id && (
+          {user.standoff_id ? (
             <div className="text-muted text-[11px] font-medium">
               🆔 Standoff ID: <span className="text-black font-bold">{user.standoff_id}</span>
             </div>
+          ) : (
+            <button
+              onClick={() => { haptic('light'); setShowSettings(true); }}
+              className="text-orange text-[11px] font-bold underline"
+            >
+              Указать Standoff ID →
+            </button>
           )}
         </div>
       </motion.div>
 
-      {/* Кружки со статистикой */}
+      {/* ===== БОЛЬШАЯ СТАТИСТИКА ===== */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
         className="bg-card border border-border rounded-3xl p-5 shadow-card"
       >
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-5">
           <Target className="w-4 h-4 text-orange" />
           <div className="text-black font-black text-sm uppercase tracking-wide">Статистика</div>
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-muted text-[10px] font-bold">{stats.matches} матчей</span>
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
-          <StatCircle label="К/Д" value={kd.toFixed(2)} percent={Math.min(100, kd * 33)} color="#FF6B00" icon={Target} />
-          <StatCircle label="КПР" value={kpr.toFixed(1)} percent={Math.min(100, kpr * 10)} color="#34C759" icon={Zap} />
-          <StatCircle label="ДПР" value={dpr.toFixed(1)} percent={Math.min(100, dpr * 10)} color="#EF4444" icon={Heart} />
-          <StatCircle label="Винрейт" value={winrate + '%'} percent={winrate} color="#8B5CF6" icon={Crown} />
+        <div className="grid grid-cols-4 gap-3 mb-5">
+          <BigCircle label="К/Д" value={kd.toFixed(2)} percent={Math.min(100, kd * 33)} color="#FF6B00" />
+          <BigCircle label="КПР" value={kpr.toFixed(1)} percent={Math.min(100, kpr * 10)} color="#34C759" />
+          <BigCircle label="ДПР" value={dpr.toFixed(1)} percent={Math.min(100, dpr * 10)} color="#EF4444" />
+          <BigCircle label="WIN" value={winrate + '%'} percent={winrate} color="#8B5CF6" />
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border">
-          <MiniStat label="Матчи" value={stats.matches} />
-          <MiniStat label="Победы" value={stats.wins} color="text-success" />
-          <MiniStat label="Поражения" value={stats.losses} color="text-danger" />
+        <div className="grid grid-cols-3 gap-3">
+          <BigStat label="Матчи" value={stats.matches} />
+          <BigStat label="Победы" value={stats.wins} color="text-success" />
+          <BigStat label="Поражения" value={stats.losses} color="text-danger" />
         </div>
       </motion.div>
+
+      {/* ===== БЫСТРЫЕ БЛОКИ ===== */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-2 gap-3"
+      >
+        <QuickBlock
+          icon={UsersIcon}
+          label="Друзья"
+          value={friendsCount}
+          color="bg-blue-500/10 text-blue-500"
+        />
+        <QuickBlock
+          icon={Swords}
+          label="Клан"
+          value={clanName || 'Нет'}
+          small
+          color="bg-purple-500/10 text-purple-500"
+        />
+        <QuickBlock
+          icon={Trophy}
+          label="Турниры"
+          value={0}
+          color="bg-orange/10 text-orange"
+        />
+        <QuickBlock
+          icon={Coins}
+          label="Жетоны"
+          value={user.tokens || 0}
+          color="bg-yellow-500/10 text-yellow-600"
+        />
+      </motion.div>
+
+      {/* ===== КНОПКА ПОДРОБНЕЕ ===== */}
+      <motion.button
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        onClick={() => { haptic('medium'); setShowFullProfile(true); }}
+        className="w-full bg-gradient-to-br from-orange to-orange2 text-white font-black rounded-2xl py-4 flex items-center justify-center gap-2 shadow-orange"
+      >
+        <UserIcon className="w-4 h-4" />
+        Подробный профиль
+        <ChevronRight className="w-4 h-4" />
+      </motion.button>
 
       {msg && (
         <motion.div
@@ -243,32 +329,20 @@ export default function Profile({ user, setUser }: Props) {
         </motion.div>
       )}
 
-      {!user.standoff_id && (
-        <div className="bg-card border-2 border-orange/40 rounded-2xl p-5 shadow-orange/20">
-          <div className="text-black font-bold mb-2 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-orange" />
-            Standoff ID обязателен
-          </div>
-          <p className="text-muted text-xs mb-3">
-            Без Standoff ID ты не сможешь участвовать в турнирах.
-          </p>
-          <input
-            value={standoffId}
-            onChange={(e) => setStandoffId(e.target.value.replace(/\D/g, ''))}
-            placeholder="Например: 12345678"
-            className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm mb-3 focus:border-orange transition-colors"
+      {/* ===== МОДАЛКИ ===== */}
+      <AnimatePresence>
+        {showFullProfile && (
+          <FullProfileModal
+            user={user}
+            stats={stats}
+            recentMatches={recentMatches}
+            friendsCount={friendsCount}
+            clanName={clanName}
+            onClose={() => setShowFullProfile(false)}
           />
-          <button
-            onClick={saveStandoffId}
-            disabled={saving}
-            className="w-full bg-orange text-white font-bold rounded-xl py-3 text-sm disabled:opacity-50 shadow-orange hover:bg-orangeDark transition-colors"
-          >
-            {saving ? 'Сохранение...' : 'Привязать Standoff ID'}
-          </button>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
-      {/* Модалка кастомизации */}
       <AnimatePresence>
         {showCustomize && (
           <Modal onClose={() => setShowCustomize(false)} title="Кастомизация">
@@ -292,7 +366,6 @@ export default function Profile({ user, setUser }: Props) {
                 ))}
               </div>
             </div>
-
             <div className="p-5 border-b border-border">
               <div className="text-black font-bold mb-3 text-sm">Цвет ника</div>
               <div className="grid grid-cols-5 gap-2">
@@ -314,7 +387,6 @@ export default function Profile({ user, setUser }: Props) {
                 ))}
               </div>
             </div>
-
             <div className="p-5">
               <div className="text-black font-bold mb-3 text-sm">Рамка аватара</div>
               <div className="grid grid-cols-3 gap-2">
@@ -336,58 +408,60 @@ export default function Profile({ user, setUser }: Props) {
         )}
       </AnimatePresence>
 
-      {/* Модалка настроек */}
       <AnimatePresence>
         {showSettings && (
           <Modal onClose={() => setShowSettings(false)} title="Настройки">
             <div className="p-5 space-y-2">
+              {!user.standoff_id && (
+                <div className="bg-orange/10 border border-orange/30 rounded-xl p-4">
+                  <div className="text-orange text-xs font-bold mb-2">Standoff ID обязателен</div>
+                  <input
+                    value={standoffId}
+                    onChange={(e) => setStandoffId(e.target.value.replace(/\D/g, ''))}
+                    placeholder="12345678"
+                    className="w-full bg-white border border-border rounded-xl px-3 py-2 text-black text-sm mb-2"
+                  />
+                  <button
+                    onClick={saveStandoffId}
+                    className="w-full bg-orange text-white font-bold rounded-xl py-2 text-xs"
+                  >
+                    Сохранить ID
+                  </button>
+                </div>
+              )}
+
               <button
                 onClick={toggleHidden}
-                className="w-full bg-bg2 border border-border rounded-xl p-4 flex items-center justify-between hover:border-orange/40 transition-colors"
+                className="w-full bg-bg2 border border-border rounded-xl p-4 flex items-center justify-between"
               >
                 <div className="flex items-center gap-2.5 text-black font-bold text-sm">
                   {user.hide_profile ? <EyeOff className="w-4 h-4 text-orange" /> : <Eye className="w-4 h-4" />}
                   {user.hide_profile ? 'Профиль скрыт' : 'Профиль открыт'}
                 </div>
-                <span className="text-muted text-xs">
-                  {user.hide_profile ? 'Показать' : 'Скрыть'}
-                </span>
               </button>
 
               <button
                 onClick={toggleTheme}
-                className="w-full bg-bg2 border border-border rounded-xl p-4 flex items-center justify-between hover:border-orange/40 transition-colors"
+                className="w-full bg-bg2 border border-border rounded-xl p-4 flex items-center justify-between"
               >
                 <div className="flex items-center gap-2.5 text-black font-bold text-sm">
                   {user.theme === 'dark' ? <Moon className="w-4 h-4 text-orange" /> : <Sun className="w-4 h-4" />}
                   Тема: {user.theme === 'dark' ? 'Тёмная' : 'Светлая'}
                 </div>
-                <span className="text-muted text-xs">Переключить</span>
               </button>
 
               <button
                 onClick={() => { setShowSettings(false); setShowEditNick(true); }}
-                className="w-full bg-bg2 border border-border rounded-xl p-4 flex items-center justify-between hover:border-orange/40 transition-colors"
+                className="w-full bg-bg2 border border-border rounded-xl p-4 flex items-center justify-between"
               >
                 <div className="text-black font-bold text-sm">Изменить ник</div>
-                <span className="text-muted text-xs">
-                  {canChangeNick() ? 'Доступно' : '24ч'}
-                </span>
-              </button>
-
-              <button
-                onClick={() => { setShowSettings(false); setShowCustomize(true); }}
-                className="w-full bg-bg2 border border-border rounded-xl p-4 flex items-center justify-between hover:border-orange/40 transition-colors"
-              >
-                <div className="text-black font-bold text-sm">Кастомизация</div>
-                <span className="text-muted text-xs">Открыть</span>
+                <span className="text-muted text-xs">{canChangeNick() ? 'Доступно' : '24ч'}</span>
               </button>
             </div>
           </Modal>
         )}
       </AnimatePresence>
 
-      {/* Модалка изменения ника */}
       <AnimatePresence>
         {showEditNick && (
           <Modal onClose={() => setShowEditNick(false)} title="Изменить ник">
@@ -397,12 +471,12 @@ export default function Profile({ user, setUser }: Props) {
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="Введи ник"
                 maxLength={16}
-                className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm mb-3 focus:border-orange transition-colors"
+                className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm mb-3"
               />
               <button
                 onClick={saveNickname}
                 disabled={saving || !canChangeNick()}
-                className="w-full bg-orange text-white font-black rounded-xl py-3 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors"
+                className="w-full bg-orange text-white font-black rounded-xl py-3 text-sm disabled:opacity-40"
               >
                 {saving ? 'Сохраняем...' : canChangeNick() ? 'Сохранить' : 'Доступно раз в 24 часа'}
               </button>
@@ -414,7 +488,108 @@ export default function Profile({ user, setUser }: Props) {
   );
 }
 
-// ===== Утилиты =====
+// ===== ПОДРОБНЫЙ ПРОФИЛЬ =====
+function FullProfileModal({
+  user, stats, recentMatches, friendsCount, clanName, onClose,
+}: any) {
+  const [tab, setTab] = useState<'info' | 'matches' | 'friends'>('info');
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-white overflow-y-auto"
+    >
+      <div className="sticky top-0 bg-white border-b border-border p-4 flex items-center gap-3 z-10">
+        <button onClick={onClose} className="p-2 rounded-xl bg-bg2">
+          <X className="w-4 h-4 text-black" />
+        </button>
+        <div className="text-black font-black">Подробный профиль</div>
+      </div>
+
+      <div className="p-4 space-y-4 max-w-2xl mx-auto">
+        {/* Инфо */}
+        {tab === 'info' && (
+          <>
+            <div className="bg-card border border-border rounded-3xl p-5">
+              <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-3">
+                О себе
+              </div>
+              <p className="text-black text-sm">
+                Здесь будет описание профиля. Скоро добавим.
+              </p>
+            </div>
+
+            <div className="bg-card border border-border rounded-3xl p-5">
+              <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-3">
+                Клан
+              </div>
+              <div className="text-black text-sm font-bold">
+                {clanName || 'Не в клане'}
+              </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-3xl p-5">
+              <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-3">
+                Друзья
+              </div>
+              <div className="text-black text-sm font-bold">{friendsCount} друзей</div>
+            </div>
+          </>
+        )}
+
+        {/* Матчи */}
+        {tab === 'matches' && (
+          <div className="space-y-2">
+            {recentMatches.length === 0 ? (
+              <div className="bg-card border border-border rounded-2xl p-8 text-center text-muted text-sm">
+                Пока нет матчей
+              </div>
+            ) : (
+              recentMatches.map((m: any) => (
+                <div key={m.id} className="bg-card border border-border rounded-2xl p-4">
+                  <div className="text-black text-sm font-bold">Матч #{m.id}</div>
+                  <div className="text-muted text-xs">{m.map || 'без карты'}</div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Друзья */}
+        {tab === 'friends' && (
+          <div className="bg-card border border-border rounded-2xl p-8 text-center text-muted text-sm">
+            Друзья: {friendsCount}
+          </div>
+        )}
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border grid grid-cols-3 z-20">
+        <button
+          onClick={() => setTab('info')}
+          className={`py-4 text-xs font-bold ${tab === 'info' ? 'text-orange' : 'text-muted'}`}
+        >
+          Инфо
+        </button>
+        <button
+          onClick={() => setTab('matches')}
+          className={`py-4 text-xs font-bold ${tab === 'matches' ? 'text-orange' : 'text-muted'}`}
+        >
+          Матчи
+        </button>
+        <button
+          onClick={() => setTab('friends')}
+          className={`py-4 text-xs font-bold ${tab === 'friends' ? 'text-orange' : 'text-muted'}`}
+        >
+          Друзья
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ===== УТИЛИТЫ =====
 
 function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (
@@ -436,7 +611,7 @@ function Modal({ children, onClose, title }: { children: React.ReactNode; onClos
           <div className="text-black font-black text-base">{title}</div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center hover:bg-bg3 transition-colors"
+            className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center"
           >
             <X className="w-4 h-4 text-black" />
           </button>
@@ -447,41 +622,54 @@ function Modal({ children, onClose, title }: { children: React.ReactNode; onClos
   );
 }
 
-function StatCircle({ label, value, percent, color, icon: Icon }: any) {
-  const radius = 26;
+function BigCircle({ label, value, percent, color }: any) {
+  const radius = 32;
   const circumference = 2 * Math.PI * radius;
   const dash = (percent / 100) * circumference;
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative w-[68px] h-[68px]">
-        <svg className="w-full h-full -rotate-90" viewBox="0 0 68 68">
-          <circle cx="34" cy="34" r={radius} fill="none" stroke="#EFEFEF" strokeWidth="6" />
+      <div className="relative w-[82px] h-[82px]">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 82 82">
+          <circle cx="41" cy="41" r={radius} fill="none" stroke="#EFEFEF" strokeWidth="7" />
           <circle
-            cx="34" cy="34" r={radius} fill="none"
-            stroke={color} strokeWidth="6" strokeLinecap="round"
+            cx="41" cy="41" r={radius} fill="none"
+            stroke={color} strokeWidth="7" strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={circumference - dash}
-            style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+            style={{ transition: 'stroke-dashoffset 0.8s ease' }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-black font-black text-sm leading-none">{value}</div>
+          <div className="text-black font-black text-lg leading-none">{value}</div>
         </div>
       </div>
-      <div className="text-muted text-[9px] uppercase tracking-wider font-bold mt-2 flex items-center gap-0.5">
-        <Icon className="w-2.5 h-2.5" style={{ color }} />
+      <div className="text-muted text-[10px] uppercase tracking-wider font-bold mt-2">
         {label}
       </div>
     </div>
   );
 }
 
-function MiniStat({ label, value, color = 'text-black' }: any) {
+function BigStat({ label, value, color = 'text-black' }: any) {
   return (
-    <div className="bg-bg2 rounded-xl p-2.5 text-center">
-      <div className={`font-black text-base ${color}`}>{value}</div>
+    <div className="bg-bg2 rounded-2xl p-3 text-center">
+      <div className={`font-black text-xl ${color}`}>{value}</div>
       <div className="text-muted text-[9px] uppercase tracking-wider font-bold">{label}</div>
+    </div>
+  );
+}
+
+function QuickBlock({ icon: Icon, label, value, color, small }: any) {
+  return (
+    <div className="bg-card border border-border rounded-2xl p-4 shadow-card">
+      <div className={`w-9 h-9 rounded-xl ${color} flex items-center justify-center mb-2`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="text-muted text-[10px] uppercase tracking-wider font-bold">{label}</div>
+      <div className={`text-black font-black ${small ? 'text-xs' : 'text-lg'} mt-0.5 truncate`}>
+        {value}
+      </div>
     </div>
   );
 }

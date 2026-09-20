@@ -1,20 +1,18 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User as UserIcon, Trophy, BarChart3, Info as InfoIcon, Users, Building2 } from 'lucide-react';
+import { User as UserIcon, Users, Building2, BarChart3, Info as InfoIcon } from 'lucide-react';
 import { supabase, type User } from './supabase';
 import { initTelegram, getTelegramUser, haptic } from './lib/telegram';
 import Profile from './components/Profile';
-import Tournament from './components/Tournament';
 import Clan from './components/Clan';
 import Rating from './components/Rating';
 import Info from './components/Info';
 import OrganizerPage from './components/OrganizerPage';
 
-type Tab = 'profile' | 'tournament' | 'clan' | 'organizers' | 'rating' | 'info';
+type Tab = 'profile' | 'clan' | 'organizers' | 'rating' | 'info';
 
 const TABS: { id: Tab; label: string; Icon: any }[] = [
   { id: 'profile', label: 'Аккаунт', Icon: UserIcon },
-  { id: 'tournament', label: 'Турнир', Icon: Trophy },
   { id: 'clan', label: 'Клан', Icon: Users },
   { id: 'organizers', label: 'Орг', Icon: Building2 },
   { id: 'rating', label: 'Рейтинг', Icon: BarChart3 },
@@ -192,7 +190,6 @@ export default function App() {
             transition={{ duration: 0.18 }}
           >
             {tab === 'profile' && <Profile user={user} setUser={setUser} />}
-            {tab === 'tournament' && <Tournament user={user} />}
             {tab === 'clan' && <Clan user={user} />}
             {tab === 'organizers' && <OrganizerPage user={user} />}
             {tab === 'rating' && <Rating />}
@@ -202,7 +199,7 @@ export default function App() {
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border z-20 shadow-[0_-2px_12px_rgba(0,0,0,0.04)]">
-        <div className="grid grid-cols-6 max-w-lg mx-auto">
+        <div className="grid grid-cols-5 max-w-lg mx-auto">
           {TABS.map((t) => (
             <button
               key={t.id}

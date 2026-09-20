@@ -1,4 +1,4 @@
-// Звания Standoff 2 — с картинками из /public/ranks/
+﻿// Звания Standoff 2 — с картинками из /public/ranks/
 
 export type Rank = {
   id: string;
