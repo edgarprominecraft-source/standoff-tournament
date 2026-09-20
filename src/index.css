@@ -12,8 +12,8 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: #0A0A0A;
-  color: #FFFFFF;
+  background: #FFFFFF;
+  color: #0A0A0A;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-feature-settings: 'ss01', 'ss02';
   overscroll-behavior: none;
@@ -26,18 +26,18 @@ html, body {
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2A2A2A;
-  border-radius: 4px;
+  background: #D0D0D0;
+  border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: #B0B0B0;
 }
 
 button {
@@ -49,19 +49,18 @@ button {
   color: inherit;
 }
 
-input {
+input, textarea {
   font-family: inherit;
   outline: none;
 }
 
-/* Скрыть стрелки у number input */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* Кастомная анимация появления снизу вверх */
+/* Анимации */
 @keyframes slideInFromBottom {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -71,22 +70,34 @@ input::-webkit-inner-spin-button {
   animation: slideInFromBottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Градиент для карт */
-.map-gradient-sandstone { background: linear-gradient(135deg, #8B6F47 0%, #C9A961 100%); }
-.map-gradient-rust { background: linear-gradient(135deg, #7A3E1C 0%, #B86636 100%); }
-.map-gradient-province { background: linear-gradient(135deg, #2D4A3E 0%, #4A7C59 100%); }
-.map-gradient-zone9 { background: linear-gradient(135deg, #2B3A5C 0%, #4A6FA5 100%); }
-.map-gradient-breeze { background: linear-gradient(135deg, #3D5A6C 0%, #6BA3C0 100%); }
-.map-gradient-dune { background: linear-gradient(135deg, #B8860B 0%, #DAA520 100%); }
-.map-gradient-soar { background: linear-gradient(135deg, #4A4A6A 0%, #7A7AA0 100%); }
+/* Градиенты для карт */
+.map-gradient-sandstone { background: linear-gradient(135deg, #C9A961 0%, #E5C989 100%); }
+.map-gradient-rust { background: linear-gradient(135deg, #B86636 0%, #D98856 100%); }
+.map-gradient-province { background: linear-gradient(135deg, #4A7C59 0%, #6BAA7A 100%); }
+.map-gradient-zone9 { background: linear-gradient(135deg, #4A6FA5 0%, #6B94C9 100%); }
+.map-gradient-breeze { background: linear-gradient(135deg, #6BA3C0 0%, #8EC5DC 100%); }
+.map-gradient-dune { background: linear-gradient(135deg, #DAA520 0%, #F0C34A 100%); }
+.map-gradient-soar { background: linear-gradient(135deg, #7A7AA0 0%, #9A9AC0 100%); }
 
-/* Shimmer эффект */
+/* Shimmer для скелетонов */
 .shimmer-bg {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255,255,255,0.08) 50%,
+    rgba(0,0,0,0.04) 50%,
     transparent 100%
   );
   background-size: 1000px 100%;
+}
+
+/* Жёлтое свечение для активных элементов */
+.glow-yellow {
+  box-shadow: 0 4px 20px rgba(255, 214, 10, 0.4);
+}
+
+/* Фон-паттерн для главной */
+.bg-pattern {
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(255,214,10,0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(255,138,0,0.10) 0%, transparent 50%);
 }
