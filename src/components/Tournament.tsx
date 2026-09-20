@@ -20,6 +20,8 @@ type RawTeam = {
   player4_id: number | null;
   player5_id: number | null;
   side: 'left' | 'right' | null;
+  team_name: string | null;
+  logo_url: string | null;
 };
 
 type RawMatch = {
@@ -69,7 +71,6 @@ export default function Tournament({ user }: Props) {
       .order('created_at', { ascending: false });
     if (data) setTournaments(data as TTournament[]);
 
-    // Подгружаем организаторов
     const orgIds = Array.from(new Set((data || []).map((t: any) => t.organizer_id).filter(Boolean)));
     if (orgIds.length > 0) {
       const { data: orgs } = await supabase
@@ -138,8 +139,8 @@ export default function Tournament({ user }: Props) {
             matchId: match.matchId!,
             team1Id: match.team1!.id,
             team2Id: match.team2!.id,
-            team1Name: match.team1!.players[0]?.name || 'Команда 1',
-            team2Name: match.team2!.players[0]?.name || 'Команда 2',
+            team1Name: match.team1!.name || 'Команда 1',
+            team2Name: match.team2!.name || 'Команда 2',
             myTeamId: null,
           })
         }
@@ -236,7 +237,7 @@ function TournamentCard({
     const load = async () => {
       const { data: rawTeams } = await supabase
         .from('teams')
-        .select('id, player1_id, player2_id, player3_id, player4_id, player5_id, side')
+        .select('id, player1_id, player2_id, player3_id, player4_id, player5_id, side, team_name, logo_url')
         .eq('tournament_id', tournament.id)
         .order('created_at', { ascending: true })
         .limit(8);
@@ -275,7 +276,15 @@ function TournamentCard({
             photo: u?.avatar_url || u?.photo_url || null,
           };
         });
-        return { id: t.id, players, side: t.side };
+        const captain = userMap.get(t.player1_id);
+        return {
+          id: t.id,
+          name: t.team_name || captain?.nickname || captain?.first_name || 'Команда',
+          captain_photo: captain?.avatar_url || captain?.photo_url || null,
+          logo_url: t.logo_url || null,
+          players,
+          side: t.side,
+        };
       });
 
       setPreview(enriched);
@@ -304,7 +313,6 @@ function TournamentCard({
       animate={{ opacity: 1, y: 0 }}
       className="bg-card border border-border rounded-3xl overflow-hidden shadow-card hover:shadow-cardHover transition-shadow"
     >
-      {/* Шапка с оранжевым градиентом */}
       <div className="relative bg-gradient-to-br from-orange to-orange2 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.35),transparent_65%)]" />
         <div className="absolute -right-10 -bottom-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
@@ -336,17 +344,13 @@ function TournamentCard({
             Формат 5×5 · Single Elim · до {tournament.max_teams} команд
           </div>
 
-          {/* Призовой фонд */}
           {tournament.prize_gold && tournament.prize_gold > 0 && (
             <div className="inline-flex items-center gap-1.5 bg-white/25 backdrop-blur border border-white/40 rounded-full px-3 py-1 mt-2">
               <Coins className="w-3.5 h-3.5 text-white" />
-              <span className="text-white font-black text-sm">
-                {tournament.prize_gold} G
-              </span>
+              <span className="text-white font-black text-sm">{tournament.prize_gold} G</span>
             </div>
           )}
 
-          {/* Организатор */}
           {organizer && (
             <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/20">
               <div className="w-6 h-6 rounded-lg bg-white/25 backdrop-blur border border-white/40 flex items-center justify-center overflow-hidden">
@@ -365,7 +369,6 @@ function TournamentCard({
         </div>
       </div>
 
-      {/* Мини-сетка с 8 слотами */}
       <div className="p-4 border-t border-border bg-bg2/40">
         <div className="flex items-center gap-2 mb-2.5 px-1">
           <Swords className="w-3 h-3 text-orange" />
@@ -379,7 +382,6 @@ function TournamentCard({
         <div className="grid grid-cols-2 gap-2">
           {Array.from({ length: 8 }).map((_, i) => {
             const team = preview[i];
-            const first = team?.players?.[0];
             return (
               <div
                 key={i}
@@ -389,20 +391,22 @@ function TournamentCard({
                     : 'bg-white/50 border-dashed border-border2'
                 }`}
               >
-                {team && first ? (
+                {team ? (
                   <>
-                    <div className="w-7 h-7 rounded-full bg-bg2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {first.photo ? (
-                        <img src={first.photo} alt="" className="w-full h-full object-cover" />
+                    <div className="w-7 h-7 rounded-md bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {team.logo_url ? (
+                        <img src={team.logo_url} alt="" className="w-full h-full object-cover" />
+                      ) : team.captain_photo ? (
+                        <img src={team.captain_photo} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-[10px] text-muted font-black">
-                          {first.name?.charAt(0).toUpperCase()}
+                        <span className="text-[10px] text-white font-black">
+                          {team.name?.charAt(0)?.toUpperCase() || '?'}
                         </span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-black text-[11px] font-bold truncate">
-                        {first.name}
+                        {team.name}
                       </div>
                       <div className="text-muted text-[9px] font-bold">
                         {team.players.length}/5
@@ -411,7 +415,7 @@ function TournamentCard({
                   </>
                 ) : (
                   <>
-                    <div className="w-7 h-7 rounded-full bg-bg2 border border-border flex items-center justify-center flex-shrink-0">
+                    <div className="w-7 h-7 rounded-md bg-bg2 border border-border flex items-center justify-center flex-shrink-0">
                       <Lock className="w-3 h-3 text-muted2" />
                     </div>
                     <div className="text-muted text-[10px] font-bold">Свободно</div>
@@ -429,7 +433,6 @@ function TournamentCard({
         )}
       </div>
 
-      {/* Прогресс-бар */}
       <div className="px-4 pb-3">
         <div className="h-1.5 bg-bg2 rounded-full overflow-hidden">
           <motion.div
@@ -449,7 +452,6 @@ function TournamentCard({
         </div>
       </div>
 
-      {/* Кнопка */}
       <div className="p-4 pt-0">
         <motion.button
           onClick={onJoin}
@@ -539,7 +541,15 @@ function BracketView({
           photo: u?.avatar_url || u?.photo_url || null,
         };
       });
-      return { id: t.id, players, side: t.side };
+      const captain = userMap.get(t.player1_id);
+      return {
+        id: t.id,
+        name: t.team_name || captain?.nickname || captain?.first_name || 'Команда',
+        captain_photo: captain?.avatar_url || captain?.photo_url || null,
+        logo_url: t.logo_url || null,
+        players,
+        side: t.side,
+      };
     });
 
     const built = buildBracket(teams);

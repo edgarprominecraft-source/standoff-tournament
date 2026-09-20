@@ -21,6 +21,8 @@ type RawTeam = {
   player4_id: number | null;
   player5_id: number | null;
   side: 'left' | 'right' | null;
+  team_name: string | null;
+  logo_url: string | null;
 };
 
 const MAX_PLAYERS = 5;
@@ -34,7 +36,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const loadTeams = async () => {
     const { data: rawTeams } = await supabase
       .from('teams')
-      .select('id, player1_id, player2_id, player3_id, player4_id, player5_id, side')
+      .select('id, player1_id, player2_id, player3_id, player4_id, player5_id, side, team_name, logo_url')
       .eq('tournament_id', tournamentId)
       .order('created_at', { ascending: true });
 
@@ -70,7 +72,15 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
           standoff_id: u?.standoff_id || null,
         };
       });
-      return { id: t.id, players, side: t.side };
+      const captain = userMap.get(t.player1_id);
+      return {
+        id: t.id,
+        name: t.team_name || captain?.nickname || captain?.first_name || 'Команда',
+        captain_photo: captain?.avatar_url || captain?.photo_url || null,
+        logo_url: t.logo_url || null,
+        players,
+        side: t.side,
+      };
     });
 
     setTeams(enriched);
@@ -91,7 +101,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     return () => { supabase.removeChannel(channel); };
   }, [tournamentId]);
 
-  // Найти команду где я
   const myTeam = teams.find((t) => t.players.some((p) => p.id === user.user_id));
   const isCaptain = myTeam?.players[0]?.id === user.user_id;
   const myPlayersCount = myTeam?.players.length ?? 0;
@@ -106,7 +115,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     setJoining(true);
     haptic('medium');
 
-    // Ищем команду с неполным составом
     const { data: rawTeams } = await supabase
       .from('teams')
       .select('*')
@@ -127,13 +135,16 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       if (error) { hapticError(); setMsg(error.message); }
       else { hapticSuccess(); setMsg('Ты присоединился к команде'); }
     } else {
+      const captainName = user.nickname || user.first_name || 'Команда';
       const { error } = await supabase.from('teams').insert({
         tournament_id: tournamentId,
         player1_id: user.user_id,
+        captain_id: user.user_id,
+        team_name: captainName,
         side: Math.random() < 0.5 ? 'left' : 'right',
       });
       if (error) { hapticError(); setMsg(error.message); }
-      else { hapticSuccess(); setMsg('Ты создал команду. Ждём ещё 4 игроков.'); }
+      else { hapticSuccess(); setMsg('Ты создал команду. Ждём ещё игроков.'); }
     }
     setJoining(false);
   };
@@ -154,16 +165,15 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     if (isCaptain && myPlayersCount === 1) {
       await supabase.from('teams').delete().eq('id', myTeam.id);
     } else if (isCaptain && myPlayersCount > 1) {
-      // Передаём капитана следующему
       const next = t.player2_id || t.player3_id || t.player4_id || t.player5_id;
       updates.player1_id = next;
+      updates.captain_id = next;
       updates.player2_id = t.player2_id === next ? null : t.player2_id;
       updates.player3_id = t.player3_id === next ? null : t.player3_id;
       updates.player4_id = t.player4_id === next ? null : t.player4_id;
       updates.player5_id = t.player5_id === next ? null : t.player5_id;
       await supabase.from('teams').update(updates).eq('id', myTeam.id);
     } else {
-      // Просто отцепляемся
       if (isInSlot('player2_id')) updates.player2_id = null;
       if (isInSlot('player3_id')) updates.player3_id = null;
       if (isInSlot('player4_id')) updates.player4_id = null;

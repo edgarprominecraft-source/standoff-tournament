@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Trophy, Swords } from 'lucide-react';
+import { Trophy, Swords, Users } from 'lucide-react';
 import type { BracketMatch } from '../../lib/bracket';
 import { roundName } from '../../lib/bracket';
 
@@ -20,7 +20,6 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
 
   const totalRounds = rounds.length;
 
-  // Названия раундов для 16 команд
   const getRoundLabel = (rIdx: number) => {
     const fromEnd = totalRounds - rIdx - 1;
     if (fromEnd === 0) return 'Финал';
@@ -32,14 +31,9 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
 
   return (
     <div className="bg-white rounded-3xl border border-border p-4 shadow-card overflow-x-auto">
-      {/* Заголовки раундов */}
       <div className="flex gap-3 mb-4 min-w-max">
         {rounds.map((round, rIdx) => (
-          <div
-            key={rIdx}
-            className="flex-shrink-0"
-            style={{ width: rIdx === 0 ? 200 : 180 }}
-          >
+          <div key={rIdx} className="flex-shrink-0" style={{ width: rIdx === 0 ? 200 : 180 }}>
             <div className="text-center">
               <div className="text-orange text-[11px] font-black uppercase tracking-widest">
                 {getRoundLabel(rIdx)}
@@ -55,14 +49,11 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
             <div className="text-orange text-[11px] font-black uppercase tracking-widest">
               Победитель
             </div>
-            <div className="text-muted text-[10px] font-bold mt-0.5">
-              🏆
-            </div>
+            <div className="text-muted text-[10px] font-bold mt-0.5">🏆</div>
           </div>
         </div>
       </div>
 
-      {/* Сетка */}
       <div className="flex gap-3 min-w-max items-stretch">
         {rounds.map((round, rIdx) => {
           const isFirstRound = rIdx === 0;
@@ -71,7 +62,6 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
           return (
             <div key={rIdx} className="flex-shrink-0 flex flex-col justify-around" style={{ width: isFirstRound ? 200 : 180 }}>
               {round.map((match, mIdx) => {
-                const isLastMatch = mIdx === round.length - 1;
                 const hasNext = !isLastRound;
 
                 return (
@@ -83,7 +73,6 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
                       minHeight: isFirstRound ? 80 : 80,
                     }}
                   >
-                    {/* Карточка матча */}
                     <div className="flex-1 z-10">
                       <MatchCard
                         match={match}
@@ -96,40 +85,22 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
                       />
                     </div>
 
-                    {/* Линии к следующему раунду */}
                     {hasNext && (
                       <>
-                        {/* Горизонтальная линия от матча */}
                         <div
                           className="absolute bg-orange/40"
-                          style={{
-                            right: -12,
-                            top: '50%',
-                            width: 12,
-                            height: 2,
-                          }}
+                          style={{ right: -12, top: '50%', width: 12, height: 2 }}
                         />
-                        {/* Вертикальная линия — только для нечётных матчей (0, 2, 4...) */}
                         {mIdx % 2 === 0 && (
                           <div
                             className="absolute bg-orange/40"
-                            style={{
-                              right: -12,
-                              top: '50%',
-                              width: 2,
-                              height: 'calc(50% + 40px)',
-                            }}
+                            style={{ right: -12, top: '50%', width: 2, height: 'calc(50% + 40px)' }}
                           />
                         )}
                         {mIdx % 2 === 1 && (
                           <div
                             className="absolute bg-orange/40"
-                            style={{
-                              right: -12,
-                              bottom: '50%',
-                              width: 2,
-                              height: 'calc(50% + 40px)',
-                            }}
+                            style={{ right: -12, bottom: '50%', width: 2, height: 'calc(50% + 40px)' }}
                           />
                         )}
                       </>
@@ -141,7 +112,6 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
           );
         })}
 
-        {/* Финальный победитель */}
         <div className="flex-shrink-0 flex flex-col justify-center" style={{ width: 140 }}>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -149,17 +119,13 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
             className="bg-gradient-to-br from-orange to-orange2 rounded-2xl p-4 text-center shadow-orange"
           >
             <Trophy className="w-8 h-8 text-white mx-auto mb-1.5" strokeWidth={2} />
-            <div className="text-white font-black text-xs uppercase tracking-wider">
-              Чемпион
-            </div>
+            <div className="text-white font-black text-xs uppercase tracking-wider">Чемпион</div>
             {rounds[rounds.length - 1]?.[0]?.winner ? (
               <div className="text-white text-sm font-bold mt-2 truncate">
-                {rounds[rounds.length - 1][0].winner!.players[0]?.name || '—'}
+                {rounds[rounds.length - 1][0].winner!.name || '—'}
               </div>
             ) : (
-              <div className="text-white/60 text-[10px] mt-2 font-semibold">
-                Пока нет
-              </div>
+              <div className="text-white/60 text-[10px] mt-2 font-semibold">Пока нет</div>
             )}
           </motion.div>
         </div>
@@ -168,7 +134,6 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
   );
 }
 
-// ===== Карточка матча =====
 function MatchCard({
   match,
   label,
@@ -195,54 +160,68 @@ function MatchCard({
         {label}
       </div>
 
-      {/* Команда 1 */}
-      <div className="flex items-center gap-1.5 mb-1">
-        <div className="w-5 h-5 rounded-full bg-bg2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
-          {match.team1?.players[0]?.photo ? (
-            <img src={match.team1.players[0].photo} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-[8px] text-muted font-black">
-              {match.team1?.players[0]?.name?.charAt(0).toUpperCase() || '?'}
-            </span>
-          )}
-        </div>
-        <div className={`text-[10px] font-bold truncate flex-1 ${
-          match.winner?.id === match.team1?.id ? 'text-orange' : 'text-black'
-        }`}>
-          {match.team1?.players[0]?.name || '—'}
-        </div>
-        {match.winner?.id === match.team1?.id && (
-          <div className="w-3 h-3 rounded-full bg-orange flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-[7px] font-black">✓</span>
-          </div>
-        )}
-      </div>
+      <TeamRow
+        team={match.team1}
+        isWinner={match.winner?.id === match.team1?.id && !!match.winner}
+      />
 
-      {/* Разделитель */}
-      <div className="h-px bg-border mx-1 mb-1" />
+      <div className="h-px bg-border mx-1 my-1" />
 
-      {/* Команда 2 */}
-      <div className="flex items-center gap-1.5">
-        <div className="w-5 h-5 rounded-full bg-bg2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
-          {match.team2?.players[0]?.photo ? (
-            <img src={match.team2.players[0].photo} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-[8px] text-muted font-black">
-              {match.team2?.players[0]?.name?.charAt(0).toUpperCase() || '?'}
-            </span>
-          )}
-        </div>
-        <div className={`text-[10px] font-bold truncate flex-1 ${
-          match.winner?.id === match.team2?.id ? 'text-orange' : 'text-black'
-        }`}>
-          {match.team2?.players[0]?.name || '—'}
-        </div>
-        {match.winner?.id === match.team2?.id && (
-          <div className="w-3 h-3 rounded-full bg-orange flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-[7px] font-black">✓</span>
-          </div>
-        )}
-      </div>
+      <TeamRow
+        team={match.team2}
+        isWinner={match.winner?.id === match.team2?.id && !!match.winner}
+      />
     </motion.button>
+  );
+}
+
+function TeamRow({
+  team,
+  isWinner,
+}: {
+  team: BracketMatch['team1'];
+  isWinner: boolean;
+}) {
+  if (!team) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="w-6 h-6 rounded-md bg-bg2 border border-dashed border-border2 flex items-center justify-center flex-shrink-0">
+          <span className="text-[10px] text-muted2">?</span>
+        </div>
+        <div className="text-[10px] font-bold text-muted2 truncate flex-1">
+          Ожидание
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-6 h-6 rounded-md bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0">
+        {team.logo_url ? (
+          <img src={team.logo_url} alt="" className="w-full h-full object-cover" />
+        ) : team.captain_photo ? (
+          <img src={team.captain_photo} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-[10px] text-white font-black">
+            {team.name?.charAt(0)?.toUpperCase() || '?'}
+          </span>
+        )}
+      </div>
+      <div className={`text-[10px] font-bold truncate flex-1 ${
+        isWinner ? 'text-orange' : 'text-black'
+      }`}>
+        {team.name || 'Команда'}
+      </div>
+      <div className="text-[9px] text-muted font-bold flex items-center gap-0.5 flex-shrink-0">
+        <Users className="w-2.5 h-2.5" />
+        {team.players.length}
+      </div>
+      {isWinner && (
+        <div className="w-3 h-3 rounded-full bg-orange flex items-center justify-center flex-shrink-0">
+          <span className="text-white text-[7px] font-black">✓</span>
+        </div>
+      )}
+    </div>
   );
 }

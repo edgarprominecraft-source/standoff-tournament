@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import { User as UserIcon, Check, Clock, Users } from 'lucide-react';
 import type { BracketTeam } from '../../lib/bracket';
 
@@ -25,10 +25,6 @@ export default function TeamCard({ team, winner, onClick, compact }: Props) {
     );
   }
 
-  const players = team.players || [];
-  const first = players[0];
-  const rest = players.slice(1);
-
   return (
     <motion.button
       onClick={onClick}
@@ -43,26 +39,28 @@ export default function TeamCard({ team, winner, onClick, compact }: Props) {
     >
       <div className="flex items-center gap-2">
         <div
-          className={`rounded-full bg-bg2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0 ${
+          className={`rounded-md bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0 ${
             compact ? 'w-6 h-6' : 'w-8 h-8'
           }`}
         >
-          {first?.photo ? (
-            <img src={first.photo} alt="" className="w-full h-full object-cover" />
+          {team.logo_url ? (
+            <img src={team.logo_url} alt="" className="w-full h-full object-cover" />
+          ) : team.captain_photo ? (
+            <img src={team.captain_photo} alt="" className="w-full h-full object-cover" />
           ) : (
-            <UserIcon className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-muted`} strokeWidth={1.5} />
+            <span className={`text-white font-black ${compact ? 'text-[10px]' : 'text-xs'}`}>
+              {team.name?.charAt(0)?.toUpperCase() || '?'}
+            </span>
           )}
         </div>
 
         <div className="flex-1 min-w-0">
-          <div
-            className={`text-black truncate font-bold ${compact ? 'text-xs' : 'text-sm'}`}
-          >
-            {first?.name || 'Игрок 1'}
+          <div className={`text-black truncate font-bold ${compact ? 'text-xs' : 'text-sm'}`}>
+            {team.name || 'Команда'}
           </div>
           <div className={`text-muted flex items-center gap-1 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
             <Users className="w-2.5 h-2.5" />
-            {players.length} / 5
+            {team.players.length} / 5
           </div>
         </div>
 
@@ -72,37 +70,6 @@ export default function TeamCard({ team, winner, onClick, compact }: Props) {
           </div>
         )}
       </div>
-
-      {!compact && rest.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-border space-y-1">
-          {rest.map((p) => (
-            <div key={p.id} className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-bg2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
-                {p.photo ? (
-                  <img src={p.photo} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <UserIcon className="w-2.5 h-2.5 text-muted" strokeWidth={1.5} />
-                )}
-              </div>
-              <div className="text-black text-[11px] truncate flex-1 min-w-0">{p.name}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {compact && rest.length > 0 && (
-        <div className="flex items-center gap-0.5 mt-1.5 ml-8">
-          {rest.map((p) => (
-            <div
-              key={p.id}
-              className="w-3 h-3 rounded-full bg-bg2 border border-border overflow-hidden"
-              title={p.name}
-            >
-              {p.photo && <img src={p.photo} alt="" className="w-full h-full object-cover" />}
-            </div>
-          ))}
-        </div>
-      )}
     </motion.button>
   );
 }

@@ -6,9 +6,10 @@ import {
   getAllOrganizers,
   getOrganizerTournaments,
 } from '../lib/organizers';
-import { type User, type Tournament as TTournament, supabase } from '../supabase';
-import { buildBracket, type BracketMatch } from '../lib/bracket';
+import { type User, supabase } from '../supabase';
+import { buildBracket, type BracketMatch, type BracketTeam } from '../lib/bracket';
 import BigBracket from './tournament/BigBracket';
+import TeamInfoModal from './tournament/TeamInfoModal';
 
 type Props = { user: User };
 
@@ -234,12 +235,13 @@ function TournamentBracketView({
   const [rounds, setRounds] = useState<BracketMatch[][]>([]);
   const [loading, setLoading] = useState(true);
   const [matchCount, setMatchCount] = useState(0);
+  const [selectedTeam, setSelectedTeam] = useState<BracketTeam | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data: rawTeams } = await supabase
         .from('teams')
-        .select('id, player1_id, player2_id, player3_id, player4_id, player5_id, side')
+        .select('*')
         .eq('tournament_id', tournament.id);
 
       const { data: rawMatches } = await supabase
@@ -264,13 +266,13 @@ function TournamentBracketView({
 
       const { data: usersData } = await supabase
         .from('users')
-        .select('user_id, nickname, first_name, photo_url, avatar_url')
+        .select('user_id, nickname, first_name, photo_url, avatar_url, standoff_id, rank')
         .in('user_id', Array.from(userIds));
 
       const userMap = new Map<number, any>();
       (usersData ?? []).forEach((u) => userMap.set(u.user_id, u));
 
-      const teams = (rawTeams as any[]).map((t) => {
+      const teams: BracketTeam[] = (rawTeams as any[]).map((t) => {
         const ids = [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].filter(Boolean) as number[];
         const players = ids.map((id) => {
           const u = userMap.get(id);
@@ -278,9 +280,21 @@ function TournamentBracketView({
             id,
             name: u?.nickname || u?.first_name || 'Игрок',
             photo: u?.avatar_url || u?.photo_url || null,
+            standoff_id: u?.standoff_id || null,
           };
         });
-        return { id: t.id, players, side: t.side };
+
+        const captain = userMap.get(t.player1_id);
+        const teamName = t.team_name || captain?.nickname || captain?.first_name || 'Команда';
+
+        return {
+          id: t.id,
+          name: teamName,
+          captain_photo: captain?.avatar_url || captain?.photo_url || null,
+          logo_url: t.logo_url || null,
+          players,
+          side: t.side,
+        };
       });
 
       const built = buildBracket(teams);
@@ -340,13 +354,23 @@ function TournamentBracketView({
           <Trophy className="w-12 h-12 text-muted mx-auto mb-3" strokeWidth={1.5} />
           <div className="text-black font-bold mb-2">Сетка ещё не создана</div>
           <p className="text-muted text-xs leading-relaxed">
-            Сетка появится когда создадутся матчи
-
-
+            Матчи появятся когда наберётся нужное количество команд
           </p>
         </div>
       ) : (
-        <BigBracket rounds={rounds} />
+        <BigBracket
+          rounds={rounds}
+          onMatchClick={(match) => {
+            if (match.team1) setSelectedTeam(match.team1);
+          }}
+        />
+      )}
+
+      {selectedTeam && (
+        <TeamInfoModal
+          team={selectedTeam}
+          onClose={() => setSelectedTeam(null)}
+        />
       )}
     </div>
   );

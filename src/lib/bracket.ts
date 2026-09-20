@@ -1,15 +1,16 @@
-// Сетка для Single Elimination (5х5, до 32 команд)
-
-export type BracketPlayer = {
-  id: number;
-  name: string;
-  photo: string | null;
-  standoff_id?: string | null;
-};
+// Сетка для Single Elimination (5х5)
 
 export type BracketTeam = {
   id: number;
-  players: BracketPlayer[];
+  name: string;           // Название команды (или ник капитана)
+  captain_photo: string | null;
+  logo_url: string | null;
+  players: {
+    id: number;
+    name: string;
+    photo: string | null;
+    standoff_id?: string | null;
+  }[];
   side: 'left' | 'right' | null;
 };
 
@@ -70,25 +71,6 @@ export function isRoundComplete(round: BracketMatch[]): boolean {
   return round.every((m) => m.winner !== null);
 }
 
-export function advanceWinners(rounds: BracketMatch[][]): BracketMatch[][] {
-  const updated = rounds.map((r) => r.map((m) => ({ ...m })));
-  for (let r = 0; r < updated.length - 1; r++) {
-    const current = updated[r];
-    const next = updated[r + 1];
-    if (!isRoundComplete(current)) continue;
-    for (let i = 0; i < current.length; i += 2) {
-      const winnerA = current[i].winner;
-      const winnerB = current[i + 1]?.winner ?? null;
-      const nextPos = Math.floor(i / 2);
-      if (next[nextPos]) {
-        next[nextPos].team1 = winnerA;
-        next[nextPos].team2 = winnerB;
-      }
-    }
-  }
-  return updated;
-}
-
 export function roundName(round: number, total: number): string {
   const fromEnd = total - round;
   if (fromEnd === 0) return 'Финал';
@@ -104,10 +86,6 @@ export function totalRounds(teamsCount: number): number {
 }
 
 export function teamDisplayName(t: BracketTeam | null): string {
-  if (!t || t.players.length === 0) return 'Команда';
-  return t.players[0].name;
-}
-
-export function playersCount(t: BracketTeam | null): number {
-  return t?.players.length ?? 0;
+  if (!t) return 'Команда';
+  return t.name || 'Команда';
 }
