@@ -16,7 +16,6 @@ export type User = {
   last_nick_change: string | null;
   bg_color: string | null;
   nickname_color: string | null;
-  // Новые поля
   avatar_url: string | null;
   banner_url: string | null;
   avatar_frame: string | null;
@@ -49,7 +48,10 @@ export type Team = {
   id: number;
   tournament_id: number;
   player1_id: number;
-  player2_id: number;
+  player2_id: number | null;
+  player3_id: number | null;
+  player4_id: number | null;
+  player5_id: number | null;
   side: 'left' | 'right' | null;
   confirmed1: boolean;
   confirmed2: boolean;

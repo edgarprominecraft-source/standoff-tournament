@@ -33,7 +33,7 @@ export default function Bracket({ rounds, onMatchClick, currentMatchId }: Props)
           key={rIdx}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: rIdx * 0.08 }}
+          transition={{ delay: rIdx * 0.06 }}
           className="space-y-3"
         >
           <div className="flex items-center gap-2 px-1">
@@ -55,7 +55,7 @@ export default function Bracket({ rounds, onMatchClick, currentMatchId }: Props)
                   key={mIdx}
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: rIdx * 0.08 + mIdx * 0.03 }}
+                  transition={{ delay: rIdx * 0.06 + mIdx * 0.02 }}
                   className={`bg-bg2/50 border rounded-2xl p-2 space-y-1 transition-all duration-300 ${
                     isCurrent
                       ? 'border-orange shadow-orange'

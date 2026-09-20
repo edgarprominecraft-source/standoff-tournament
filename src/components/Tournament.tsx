@@ -16,9 +16,10 @@ type RawTeam = {
   id: number;
   player1_id: number;
   player2_id: number | null;
+  player3_id: number | null;
+  player4_id: number | null;
+  player5_id: number | null;
   side: 'left' | 'right' | null;
-  confirmed1: boolean;
-  confirmed2: boolean;
 };
 
 type RawMatch = {
@@ -51,10 +52,7 @@ export default function Tournament({ user }: Props) {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [view, setView] = useState<ViewState>({ type: 'list' });
-  const [sponsorModal, setSponsorModal] = useState<{
-    tournament: TTournament;
-    sponsors: Sponsor[];
-  } | null>(null);
+  const [sponsorModal, setSponsorModal] = useState<{ tournament: TTournament; sponsors: Sponsor[] } | null>(null);
 
   const loadTournaments = async () => {
     const { data } = await supabase
@@ -65,9 +63,7 @@ export default function Tournament({ user }: Props) {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadTournaments();
-  }, []);
+  useEffect(() => { loadTournaments(); }, []);
 
   const handleOpenTournament = async (t: TTournament) => {
     if (!user.standoff_id) {
@@ -75,7 +71,6 @@ export default function Tournament({ user }: Props) {
       setMsg('Сначала добавь Standoff ID в профиле');
       return;
     }
-
     haptic('medium');
 
     const { data: ts } = await supabase
@@ -83,9 +78,7 @@ export default function Tournament({ user }: Props) {
       .select('sponsor_id, sponsors(*)')
       .eq('tournament_id', t.id);
 
-    const sponsors: Sponsor[] = (ts ?? [])
-      .map((r: any) => r.sponsors)
-      .filter(Boolean);
+    const sponsors: Sponsor[] = (ts ?? []).map((r: any) => r.sponsors).filter(Boolean);
 
     if (sponsors.length > 0) {
       setSponsorModal({ tournament: t, sponsors });
@@ -124,8 +117,8 @@ export default function Tournament({ user }: Props) {
             matchId: match.matchId!,
             team1Id: match.team1!.id,
             team2Id: match.team2!.id,
-            team1Name: match.team1!.player1_name || 'Команда 1',
-            team2Name: match.team2!.player1_name || 'Команда 2',
+            team1Name: match.team1!.players[0]?.name || 'Команда 1',
+            team2Name: match.team2!.players[0]?.name || 'Команда 2',
             myTeamId: null,
           })
         }
@@ -178,17 +171,11 @@ export default function Tournament({ user }: Props) {
               </div>
             </div>
             <div className="text-black font-black text-xl mb-2">Турниров пока нет</div>
-            <p className="text-muted text-xs leading-relaxed">
-              Как только появятся турниры — они отобразятся здесь
-            </p>
+            <p className="text-muted text-xs">Как только появятся — отобразятся здесь</p>
           </div>
         ) : (
           tournaments.map((t) => (
-            <TournamentCard
-              key={t.id}
-              tournament={t}
-              onJoin={() => handleOpenTournament(t)}
-            />
+            <TournamentCard key={t.id} tournament={t} onJoin={() => handleOpenTournament(t)} />
           ))
         )}
       </div>
@@ -206,14 +193,7 @@ export default function Tournament({ user }: Props) {
   );
 }
 
-// ===== КАРТОЧКА ТУРНИРА =====
-function TournamentCard({
-  tournament,
-  onJoin,
-}: {
-  tournament: TTournament;
-  onJoin: () => void;
-}) {
+function TournamentCard({ tournament, onJoin }: { tournament: TTournament; onJoin: () => void }) {
   const [teamCount, setTeamCount] = useState(0);
   const [preview, setPreview] = useState<BracketTeam[]>([]);
 
@@ -221,10 +201,10 @@ function TournamentCard({
     const load = async () => {
       const { data: rawTeams } = await supabase
         .from('teams')
-        .select('id, player1_id, player2_id, side')
+        .select('id, player1_id, player2_id, player3_id, player4_id, player5_id, side')
         .eq('tournament_id', tournament.id)
         .order('created_at', { ascending: true })
-        .limit(4);
+        .limit(8);
 
       const { data: allTeams } = await supabase
         .from('teams')
@@ -233,15 +213,13 @@ function TournamentCard({
 
       setTeamCount(allTeams?.length ?? 0);
 
-      if (!rawTeams || rawTeams.length === 0) {
-        setPreview([]);
-        return;
-      }
+      if (!rawTeams || rawTeams.length === 0) { setPreview([]); return; }
 
       const userIds = new Set<number>();
       (rawTeams as any[]).forEach((t) => {
-        userIds.add(t.player1_id);
-        if (t.player2_id) userIds.add(t.player2_id);
+        [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].forEach((id) => {
+          if (id) userIds.add(id);
+        });
       });
 
       const { data: usersData } = await supabase
@@ -253,18 +231,16 @@ function TournamentCard({
       (usersData ?? []).forEach((u) => userMap.set(u.user_id, u));
 
       const enriched: BracketTeam[] = (rawTeams as any[]).map((t) => {
-        const p1 = userMap.get(t.player1_id);
-        const p2 = t.player2_id ? userMap.get(t.player2_id) : null;
-        return {
-          id: t.id,
-          player1_id: t.player1_id,
-          player2_id: t.player2_id,
-          side: t.side,
-          player1_name: p1?.nickname || p1?.first_name || 'Игрок',
-          player2_name: p2?.nickname || p2?.first_name || null,
-          player1_photo: p1?.avatar_url || p1?.photo_url || null,
-          player2_photo: p2?.avatar_url || p2?.photo_url || null,
-        };
+        const ids = [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].filter(Boolean) as number[];
+        const players = ids.map((id) => {
+          const u = userMap.get(id);
+          return {
+            id,
+            name: u?.nickname || u?.first_name || 'Игрок',
+            photo: u?.avatar_url || u?.photo_url || null,
+          };
+        });
+        return { id: t.id, players, side: t.side };
       });
 
       setPreview(enriched);
@@ -276,19 +252,12 @@ function TournamentCard({
       .channel(`tourn-${tournament.id}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'teams',
-          filter: `tournament_id=eq.${tournament.id}`,
-        },
+        { event: '*', schema: 'public', table: 'teams', filter: `tournament_id=eq.${tournament.id}` },
         () => load()
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [tournament.id]);
 
   const full = teamCount >= tournament.max_teams;
@@ -300,18 +269,22 @@ function TournamentCard({
       animate={{ opacity: 1, y: 0 }}
       className="bg-card border border-border rounded-3xl overflow-hidden shadow-card hover:shadow-cardHover transition-shadow"
     >
-      {/* Шапка с логотипом и статусом */}
-      <div className="relative h-36 bg-gradient-to-br from-orange to-orange2 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.3),transparent_60%)]" />
-        <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+      {/* Шапка с оранжевым градиентом */}
+      <div className="relative bg-gradient-to-br from-orange to-orange2 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.35),transparent_65%)]" />
+        <div className="absolute -right-10 -bottom-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
 
-        <div className="relative p-5 h-full flex flex-col justify-between">
-          <div className="flex items-start justify-between">
+        <div className="relative p-5">
+          <div className="flex items-start justify-between mb-6">
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur border border-white/30 flex items-center justify-center">
-                <Trophy className="w-4 h-4 text-white" strokeWidth={2} />
+              <div className="w-9 h-9 rounded-xl bg-white/25 backdrop-blur border border-white/40 flex items-center justify-center">
+                <Trophy className="w-4 h-4 text-white" strokeWidth={2.5} />
               </div>
-              <div className="text-[10px] px-2.5 py-1 rounded-full bg-white/20 backdrop-blur border border-white/30 text-white font-bold uppercase tracking-wider">
+              <div className={`text-[10px] px-2.5 py-1 rounded-full backdrop-blur border font-bold uppercase tracking-wider ${
+                full
+                  ? 'bg-red-900/30 border-red-200/40 text-white'
+                  : 'bg-white/25 border-white/40 text-white'
+              }`}>
                 {full ? 'Заполнен' : 'Набор'}
               </div>
             </div>
@@ -321,58 +294,57 @@ function TournamentCard({
             </div>
           </div>
 
-          <div>
-            <div className="text-white font-black text-xl leading-tight tracking-tight drop-shadow-sm">
-              {tournament.name}
-            </div>
-            <div className="text-white/90 text-[11px] mt-0.5 font-medium">
-              Формат 2×2 · Bo1 · {tournament.max_teams} команд
-            </div>
+          <div className="text-white font-black text-2xl leading-tight tracking-tight drop-shadow-sm mb-1">
+            {tournament.name}
+          </div>
+          <div className="text-white/90 text-xs font-bold">
+            Формат 5×5 · Bo1 · до {tournament.max_teams} команд
           </div>
         </div>
       </div>
 
-      {/* Мини-сетка с замками */}
+      {/* Мини-сетка с 8 слотами */}
       <div className="p-4 border-t border-border bg-bg2/40">
         <div className="flex items-center gap-2 mb-2.5 px-1">
           <Swords className="w-3 h-3 text-orange" />
-          <div className="text-muted text-[10px] uppercase tracking-widest font-bold">
-            Сетка
+          <div className="text-muted text-[10px] uppercase tracking-widest font-bold">Сетка</div>
+          <div className="flex-1 h-px bg-border" />
+          <div className="text-muted text-[10px] font-bold">
+            {teamCount} / {tournament.max_teams}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: 4 }).map((_, i) => {
+          {Array.from({ length: 8 }).map((_, i) => {
             const team = preview[i];
+            const first = team?.players?.[0];
             return (
               <div
                 key={i}
-                className={`rounded-xl border p-2 flex items-center gap-2 h-[46px] transition-colors ${
+                className={`rounded-xl border p-2 flex items-center gap-2 h-[48px] transition-colors ${
                   team
                     ? 'bg-white border-border shadow-sm'
                     : 'bg-white/50 border-dashed border-border2'
                 }`}
               >
-                {team ? (
+                {team && first ? (
                   <>
                     <div className="w-7 h-7 rounded-full bg-bg2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {team.player1_photo ? (
-                        <img src={team.player1_photo} alt="" className="w-full h-full object-cover" />
+                      {first.photo ? (
+                        <img src={first.photo} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-[10px] text-muted font-bold">
-                          {team.player1_name?.charAt(0).toUpperCase()}
+                        <span className="text-[10px] text-muted font-black">
+                          {first.name?.charAt(0).toUpperCase()}
                         </span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-black text-[11px] font-bold truncate">
-                        {team.player1_name}
+                        {first.name}
                       </div>
-                      {team.player2_name && (
-                        <div className="text-muted text-[9px] truncate">
-                          {team.player2_name}
-                        </div>
-                      )}
+                      <div className="text-muted text-[9px] font-bold">
+                        {team.players.length}/5 игроков
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -380,7 +352,7 @@ function TournamentCard({
                     <div className="w-7 h-7 rounded-full bg-bg2 border border-border flex items-center justify-center flex-shrink-0">
                       <Lock className="w-3 h-3 text-muted2" />
                     </div>
-                    <div className="text-muted text-[10px] font-medium">Свободно</div>
+                    <div className="text-muted text-[10px] font-bold">Свободно</div>
                   </>
                 )}
               </div>
@@ -388,9 +360,9 @@ function TournamentCard({
           })}
         </div>
 
-        {teamCount > 4 && (
-          <div className="text-orange text-[10px] text-center mt-2 font-bold">
-            +{teamCount - 4} {teamCount - 4 === 1 ? 'команда' : 'команд'} ещё
+        {teamCount > 8 && (
+          <div className="text-orange text-[10px] text-center mt-2 font-black">
+            +{teamCount - 8} команд ещё
           </div>
         )}
       </div>
@@ -406,16 +378,16 @@ function TournamentCard({
           />
         </div>
         <div className="flex justify-between items-center mt-2">
-          <span className="text-muted text-[10px]">
+          <span className="text-muted text-[10px] font-bold">
             {teamCount} / {tournament.max_teams} команд
           </span>
-          <span className={`text-[10px] font-bold ${full ? 'text-danger' : 'text-orange'}`}>
+          <span className={`text-[10px] font-black ${full ? 'text-danger' : 'text-orange'}`}>
             {Math.round(percent)}%
           </span>
         </div>
       </div>
 
-      {/* Большая кнопка */}
+      {/* Кнопка */}
       <div className="p-4 pt-0">
         <motion.button
           onClick={onJoin}
@@ -438,23 +410,15 @@ function TournamentCard({
           )}
           <span className="relative flex items-center gap-2">
             {full ? (
-              <>
-                <Lock className="w-4 h-4" />
-                Мест нет
-              </>
+              <><Lock className="w-4 h-4" /> Мест нет</>
             ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Участвовать
-                <ChevronRight className="w-4 h-4" />
-              </>
+              <><Sparkles className="w-4 h-4" /> Участвовать <ChevronRight className="w-4 h-4" /></>
             )}
           </span>
         </motion.button>
 
-        {/* Подсказка про спонсоров */}
         {!full && (
-          <div className="flex items-center justify-center gap-1.5 mt-2.5 text-muted text-[10px]">
+          <div className="flex items-center justify-center gap-1.5 mt-2.5 text-muted text-[10px] font-semibold">
             <ShieldCheck className="w-3 h-3" />
             Подписка на спонсоров обязательна
           </div>
@@ -464,7 +428,6 @@ function TournamentCard({
   );
 }
 
-// ===== ЭКРАН СЕТКИ =====
 function BracketView({
   tournament,
   user,
@@ -481,25 +444,18 @@ function BracketView({
 
   const load = async () => {
     const { data: rawTeams } = await supabase
-      .from('teams')
-      .select('*')
-      .eq('tournament_id', tournament.id);
+      .from('teams').select('*').eq('tournament_id', tournament.id);
 
     const { data: rawMatches } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('tournament_id', tournament.id)
-      .order('id', { ascending: true });
+      .from('matches').select('*').eq('tournament_id', tournament.id).order('id', { ascending: true });
 
-    if (!rawTeams || rawTeams.length === 0) {
-      setLoading(false);
-      return;
-    }
+    if (!rawTeams || rawTeams.length === 0) { setLoading(false); return; }
 
     const userIds = new Set<number>();
     (rawTeams as RawTeam[]).forEach((t) => {
-      userIds.add(t.player1_id);
-      if (t.player2_id) userIds.add(t.player2_id);
+      [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].forEach((id) => {
+        if (id) userIds.add(id);
+      });
     });
 
     const { data: usersData } = await supabase
@@ -511,18 +467,16 @@ function BracketView({
     (usersData ?? []).forEach((u) => userMap.set(u.user_id, u));
 
     const teams: BracketTeam[] = (rawTeams as RawTeam[]).map((t) => {
-      const p1 = userMap.get(t.player1_id);
-      const p2 = t.player2_id ? userMap.get(t.player2_id) : null;
-      return {
-        id: t.id,
-        player1_id: t.player1_id,
-        player2_id: t.player2_id,
-        side: t.side,
-        player1_name: p1?.nickname || p1?.first_name || 'Игрок 1',
-        player2_name: p2?.nickname || p2?.first_name || null,
-        player1_photo: p1?.avatar_url || p1?.photo_url || null,
-        player2_photo: p2?.avatar_url || p2?.photo_url || null,
-      };
+      const ids = [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].filter(Boolean) as number[];
+      const players = ids.map((id) => {
+        const u = userMap.get(id);
+        return {
+          id,
+          name: u?.nickname || u?.first_name || 'Игрок',
+          photo: u?.avatar_url || u?.photo_url || null,
+        };
+      });
+      return { id: t.id, players, side: t.side };
     });
 
     const built = buildBracket(teams);
@@ -531,11 +485,7 @@ function BracketView({
     matches.forEach((m) => {
       for (const round of built) {
         for (const match of round) {
-          if (
-            match.team1?.id === m.team1_id &&
-            match.team2?.id === m.team2_id &&
-            !match.matchId
-          ) {
+          if (match.team1?.id === m.team1_id && match.team2?.id === m.team2_id && !match.matchId) {
             match.matchId = m.id;
           }
         }
@@ -565,9 +515,7 @@ function BracketView({
       .channel(`bracket-${tournament.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => load())
       .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [tournament.id]);
 
   return (
@@ -581,7 +529,7 @@ function BracketView({
         </button>
         <div className="flex-1 min-w-0">
           <div className="text-black font-black text-sm truncate">{tournament.name}</div>
-          <div className="text-muted text-[10px] uppercase tracking-widest flex items-center gap-1">
+          <div className="text-muted text-[10px] uppercase tracking-widest flex items-center gap-1 font-bold">
             <Swords className="w-3 h-3 text-orange" />
             Сетка турнира
           </div>
