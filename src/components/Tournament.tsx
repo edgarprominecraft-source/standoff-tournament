@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { Trophy, Users, ArrowLeft, ChevronRight } from 'lucide-react';
 import { supabase, type User, type Tournament as TTournament } from '../supabase';
-import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
+import { haptic, hapticError } from '../lib/telegram';
 import { buildBracket, type BracketMatch, type BracketTeam } from '../lib/bracket';
 import Lobby from './tournament/Lobby';
 import Bracket from './tournament/Bracket';
@@ -62,7 +63,6 @@ export default function Tournament({ user }: Props) {
     loadTournaments();
   }, []);
 
-  // ===== Регистрация в турнире =====
   const register = async (t: TTournament) => {
     if (!user.standoff_id) {
       hapticError();
@@ -78,7 +78,6 @@ export default function Tournament({ user }: Props) {
       .maybeSingle();
 
     if (existingTeam) {
-      // Уже зарегистрирован — сразу в лобби
       haptic('medium');
       setView({ type: 'lobby', tournament: t });
       return;
@@ -99,17 +98,13 @@ export default function Tournament({ user }: Props) {
     setView({ type: 'lobby', tournament: t });
   };
 
-  // ===== Рендер экранов =====
   if (view.type === 'lobby') {
     return (
       <Lobby
         tournamentId={view.tournament.id}
         maxTeams={view.tournament.max_teams}
         user={user}
-        onReady={() => {
-          // Все места заняты — переключаем на сетку
-          setView({ type: 'bracket', tournament: view.tournament });
-        }}
+        onReady={() => setView({ type: 'bracket', tournament: view.tournament })}
       />
     );
   }
@@ -150,11 +145,11 @@ export default function Tournament({ user }: Props) {
     );
   }
 
-  // ===== Экран списка турниров =====
   if (loading) {
     return (
-      <div className="text-muted text-center py-10 text-sm">
-        Загрузка турниров...
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="text-muted text-xs uppercase tracking-widest">Загрузка турниров</div>
       </div>
     );
   }
@@ -172,10 +167,14 @@ export default function Tournament({ user }: Props) {
       )}
 
       {tournaments.length === 0 ? (
-        <div className="bg-card border border-border rounded-2xl p-6 text-center">
-          <div className="text-4xl mb-3">🏆</div>
+        <div className="bg-card border border-border rounded-2xl p-8 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-card2 border border-border flex items-center justify-center">
+              <Trophy className="w-8 h-8 text-muted" strokeWidth={1.5} />
+            </div>
+          </div>
           <div className="text-white font-bold mb-2">Турниров пока нет</div>
-          <p className="text-muted text-xs">
+          <p className="text-muted text-xs leading-relaxed">
             Как только спонсоры подтвердят приз, турнир появится здесь.
           </p>
         </div>
@@ -196,7 +195,6 @@ export default function Tournament({ user }: Props) {
   );
 }
 
-// ===== Карточка турнира =====
 function TournamentCard({
   tournament,
   onRegister,
@@ -248,24 +246,19 @@ function TournamentCard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card border border-border rounded-2xl p-5"
+      whileHover={{ y: -2 }}
+      className="bg-card border border-border rounded-2xl p-5 hover:border-white/30 transition-colors"
     >
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1 min-w-0">
-          <div className="text-white font-bold truncate">
-            {tournament.name}
-          </div>
-          <div className="text-muted text-xs truncate">
-            {tournament.sponsor_channel
-              ? `Спонсор: ${tournament.sponsor_channel}`
-              : 'Спонсор: скоро'}
+          <div className="text-white font-bold truncate">{tournament.name}</div>
+          <div className="text-muted text-xs truncate mt-0.5">
+            {tournament.sponsor_channel ? `Спонсор: ${tournament.sponsor_channel}` : 'Спонсор: скоро'}
           </div>
         </div>
         <div
-          className={`text-[10px] px-2 py-1 rounded-full border ${
-            full
-              ? 'border-white text-white'
-              : 'border-border text-muted'
+          className={`text-[10px] px-2.5 py-1 rounded-full border font-semibold uppercase tracking-wider ${
+            full ? 'border-white text-white' : 'border-border text-muted'
           }`}
         >
           {full ? 'Полный' : 'Набор'}
@@ -273,18 +266,17 @@ function TournamentCard({
       </div>
 
       <div className="flex justify-between text-xs text-muted mb-3">
-        <span>
-          {teamCount} / {tournament.max_teams} команд
+        <span className="flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5" />
+          {teamCount} / {tournament.max_teams}
         </span>
         <span>Формат: 2х2</span>
       </div>
 
-      <div className="h-1.5 bg-bg rounded-full overflow-hidden mb-3">
+      <div className="h-1.5 bg-bg rounded-full overflow-hidden mb-4">
         <motion.div
           initial={{ width: 0 }}
-          animate={{
-            width: `${(teamCount / tournament.max_teams) * 100}%`,
-          }}
+          animate={{ width: `${(teamCount / tournament.max_teams) * 100}%` }}
           transition={{ duration: 0.4 }}
           className="h-full bg-white"
         />
@@ -293,14 +285,15 @@ function TournamentCard({
       <div className="flex gap-2">
         <button
           onClick={onOpenLobby}
-          className="flex-1 bg-white/10 border border-border text-white text-xs rounded-xl py-3 font-semibold"
+          className="flex-1 bg-white/5 border border-border text-white text-xs rounded-xl py-3 font-semibold hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5"
         >
-          Смотреть лобби
+          <ChevronRight className="w-3.5 h-3.5" />
+          Лобби
         </button>
         <button
           onClick={onRegister}
           disabled={full}
-          className="flex-1 bg-white text-black text-xs rounded-xl py-3 font-bold disabled:opacity-40"
+          className="flex-1 bg-white text-black text-xs rounded-xl py-3 font-bold disabled:opacity-40 hover:bg-white/90 transition-colors"
         >
           {full ? 'Мест нет' : 'Участвовать'}
         </button>
@@ -309,7 +302,6 @@ function TournamentCard({
   );
 }
 
-// ===== Экран сетки (отдельный компонент, чтобы не мешать логике) =====
 function BracketView({
   tournament,
   user,
@@ -341,7 +333,6 @@ function BracketView({
       return;
     }
 
-    // Подгружаем ники игроков
     const userIds = new Set<number>();
     (rawTeams as RawTeam[]).forEach((t) => {
       userIds.add(t.player1_id);
@@ -371,11 +362,9 @@ function BracketView({
       };
     });
 
-    // Строим сетку из команд
     const built = buildBracket(teams);
-
-    // Прикрепляем matchId, если матч уже есть в БД
     const matches = (rawMatches ?? []) as RawMatch[];
+
     matches.forEach((m) => {
       for (const round of built) {
         for (const match of round) {
@@ -390,7 +379,6 @@ function BracketView({
       }
     });
 
-    // Учитываем победителей
     matches.forEach((m) => {
       if (m.winner_id) {
         for (const round of built) {
@@ -410,19 +398,11 @@ function BracketView({
 
   useEffect(() => {
     load();
-
     const channel = supabase
       .channel(`bracket-${tournament.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'matches' },
-        () => load()
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => load())
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [tournament.id]);
 
   return (
@@ -430,23 +410,20 @@ function BracketView({
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="text-muted hover:text-white text-lg"
+          className="p-2 rounded-xl bg-card border border-border hover:border-white/30 transition-colors"
         >
-          ←
+          <ArrowLeft className="w-4 h-4 text-white" />
         </button>
-        <div className="flex-1">
-          <div className="text-white font-bold text-sm">
-            {tournament.name}
-          </div>
-          <div className="text-muted text-[10px] uppercase tracking-widest">
-            Сетка турнира
-          </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-white font-bold text-sm truncate">{tournament.name}</div>
+          <div className="text-muted text-[10px] uppercase tracking-widest">Сетка турнира</div>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-muted text-center py-10 text-sm">
-          Загрузка сетки...
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          <div className="text-muted text-xs uppercase tracking-widest">Загрузка сетки</div>
         </div>
       ) : (
         <Bracket rounds={rounds} onMatchClick={onOpenMatch} />

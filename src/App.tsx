@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { User as UserIcon, Trophy, BarChart3, Info as InfoIcon } from 'lucide-react';
 import { supabase, type User } from './supabase';
 import { initTelegram, getTelegramUser, haptic } from './lib/telegram';
 import Profile from './components/Profile';
@@ -9,11 +10,11 @@ import Info from './components/Info';
 
 type Tab = 'profile' | 'tournament' | 'rating' | 'info';
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'profile', label: 'Аккаунт', icon: '👤' },
-  { id: 'tournament', label: 'Турнир', icon: '🏆' },
-  { id: 'rating', label: 'Рейтинг', icon: '📊' },
-  { id: 'info', label: 'Инфо', icon: 'ℹ️' },
+const TABS: { id: Tab; label: string; Icon: any }[] = [
+  { id: 'profile', label: 'Аккаунт', Icon: UserIcon },
+  { id: 'tournament', label: 'Турнир', Icon: Trophy },
+  { id: 'rating', label: 'Рейтинг', Icon: BarChart3 },
+  { id: 'info', label: 'Инфо', Icon: InfoIcon },
 ];
 
 const STORAGE_KEY = 'standoff_user_id';
@@ -21,9 +22,6 @@ const STORAGE_KEY = 'standoff_user_id';
 function getAnonymousId(): number {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) return parseInt(stored, 10);
-
-  // Генерируем уникальный ID на основе времени + случайного числа
-  // Диапазон 9xxxxxxxxxx чтобы не пересекаться с Telegram ID (которые < 10^10)
   const id = 9000000000 + Math.floor(Math.random() * 999999999);
   localStorage.setItem(STORAGE_KEY, String(id));
   return id;
@@ -45,24 +43,11 @@ export default function App() {
 
     (async () => {
       let userId: number;
-
       if (tgUser) {
-        // Открыто в Telegram — используем ID
         userId = tgUser.id;
-
         const { data: existing } = await supabase
-          .from('users')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (existing) {
-          setUser(existing as User);
-          setLoading(false);
-          return;
-        }
-
-        // Создаём профиль из данных Telegram
+          .from('users').select('*').eq('user_id', userId).maybeSingle();
+        if (existing) { setUser(existing as User); setLoading(false); return; }
         const { data: created, error: insErr } = await supabase
           .from('users')
           .insert({
@@ -72,52 +57,28 @@ export default function App() {
             photo_url: tgUser.photo_url ?? null,
             balance: 0,
           })
-          .select()
-          .single();
-
-        if (insErr) {
-          setError(insErr.message);
-        } else {
-          setUser(created as User);
-        }
+          .select().single();
+        if (insErr) setError(insErr.message);
+        else setUser(created as User);
         setLoading(false);
         return;
       }
 
-      // Открыто в браузере — используем локальный ID
       userId = getAnonymousId();
-
       const { data: existing } = await supabase
-        .from('users')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (existing) {
-        setUser(existing as User);
-      } else {
-        // Нужна регистрация — нет данных о пользователе
-        setNeedRegister(true);
-      }
+        .from('users').select('*').eq('user_id', userId).maybeSingle();
+      if (existing) setUser(existing as User);
+      else setNeedRegister(true);
       setLoading(false);
     })();
   }, []);
 
   const submitRegistration = async () => {
-    if (!nickname.trim() || nickname.length < 3) {
-      setError('Ник минимум 3 символа');
-      return;
-    }
-    if (!standoffId.trim() || standoffId.length < 5) {
-      setError('Введи корректный Standoff ID');
-      return;
-    }
-
+    if (!nickname.trim() || nickname.length < 3) { setError('Ник минимум 3 символа'); return; }
+    if (!standoffId.trim() || standoffId.length < 5) { setError('Введи корректный Standoff ID'); return; }
     setRegistering(true);
     setError(null);
-
     const userId = getAnonymousId();
-
     const { data: created, error: insErr } = await supabase
       .from('users')
       .insert({
@@ -128,82 +89,63 @@ export default function App() {
         balance: 0,
         last_nick_change: new Date().toISOString(),
       })
-      .select()
-      .single();
-
+      .select().single();
     setRegistering(false);
-
-    if (insErr) {
-      setError(insErr.message);
-    } else {
-      setUser(created as User);
-      setNeedRegister(false);
-    }
+    if (insErr) setError(insErr.message);
+    else { setUser(created as User); setNeedRegister(false); }
   };
 
-  const switchTab = (t: Tab) => {
-    haptic('light');
-    setTab(t);
-  };
+  const switchTab = (t: Tab) => { haptic('light'); setTab(t); };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
-        <div className="text-muted">Загрузка...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          <div className="text-muted text-xs uppercase tracking-widest">Загрузка</div>
+        </div>
       </div>
     );
   }
 
-  // Экран регистрации (для браузера без Telegram)
   if (needRegister) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-sm"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
           <div className="text-center mb-6">
-            <div className="text-4xl mb-2">🏆</div>
-            <h1 className="text-white font-bold text-xl">Standoff Cup</h1>
-            <p className="text-muted text-xs mt-1">Регистрация</p>
+            <div className="flex justify-center mb-3">
+              <div className="w-16 h-16 rounded-2xl bg-card border border-border flex items-center justify-center">
+                <Trophy className="w-8 h-8 text-white" strokeWidth={1.5} />
+              </div>
+            </div>
+            <h1 className="text-white font-black text-2xl tracking-tight">STANDOFF CUP</h1>
+            <p className="text-muted text-xs mt-1 uppercase tracking-[0.3em]">Регистрация</p>
           </div>
 
           <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
             <div>
-              <label className="text-muted text-xs uppercase tracking-wide block mb-1">
-                Твой ник
-              </label>
+              <label className="text-muted text-[10px] uppercase tracking-widest block mb-1.5">Твой ник</label>
               <input
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="Например: Pastic"
                 maxLength={16}
-                className="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white text-sm"
+                className="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white text-sm focus:border-white/50 transition-colors"
               />
             </div>
-
             <div>
-              <label className="text-muted text-xs uppercase tracking-wide block mb-1">
-                Standoff ID
-              </label>
+              <label className="text-muted text-[10px] uppercase tracking-widest block mb-1.5">Standoff ID</label>
               <input
                 value={standoffId}
                 onChange={(e) => setStandoffId(e.target.value.replace(/\D/g, ''))}
                 placeholder="Например: 12345678"
-                className="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white text-sm"
+                className="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white text-sm focus:border-white/50 transition-colors"
               />
-              <p className="text-muted text-[10px] mt-1">
-                Найди в Standoff 2 → Профиль → ID
-              </p>
+              <p className="text-muted text-[10px] mt-1.5">Найди в Standoff 2 → Профиль → ID</p>
             </div>
-
             {error && (
-              <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-3 text-xs text-red-400">
-                {error}
-              </div>
+              <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-3 text-xs text-red-400">{error}</div>
             )}
-
             <button
               onClick={submitRegistration}
               disabled={registering}
@@ -212,10 +154,7 @@ export default function App() {
               {registering ? 'Создаём...' : 'Войти'}
             </button>
           </div>
-
-          <p className="text-muted text-[10px] text-center mt-4">
-            Твой ID хранится только в этом браузере
-          </p>
+          <p className="text-muted text-[10px] text-center mt-4">ID хранится только в этом браузере</p>
         </motion.div>
       </div>
     );
@@ -225,8 +164,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg p-6 text-center">
         <div>
-          <div className="text-4xl mb-4">⚠️</div>
-          <div className="text-white mb-2">Ошибка</div>
+          <div className="text-white mb-2 text-lg">Ошибка</div>
           <div className="text-muted text-sm">{error ?? 'Не удалось загрузить профиль'}</div>
         </div>
       </div>
@@ -236,7 +174,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-bg">
       <header className="px-4 py-4 border-b border-border sticky top-0 bg-bg/95 backdrop-blur z-10">
-        <h1 className="text-lg font-bold tracking-wide text-white">
+        <h1 className="text-lg font-black tracking-wider text-white">
           STANDOFF <span className="text-muted">TOURNAMENT</span>
         </h1>
       </header>
@@ -264,11 +202,11 @@ export default function App() {
             <button
               key={t.id}
               onClick={() => switchTab(t.id)}
-              className={`py-3 flex flex-col items-center gap-1 transition-colors ${
+              className={`py-3 flex flex-col items-center gap-1 transition-colors relative ${
                 tab === t.id ? 'text-white' : 'text-muted'
               }`}
             >
-              <span className="text-xl">{t.icon}</span>
+              <t.Icon className="w-5 h-5" strokeWidth={tab === t.id ? 2.5 : 2} />
               <span className="text-[10px] uppercase tracking-wide">{t.label}</span>
               {tab === t.id && (
                 <motion.div

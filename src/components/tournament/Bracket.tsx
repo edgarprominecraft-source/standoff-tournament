@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Swords, Trophy } from 'lucide-react';
 import type { BracketMatch } from '../../lib/bracket';
 import { roundName } from '../../lib/bracket';
 import TeamCard from './TeamCard';
@@ -12,8 +13,13 @@ type Props = {
 export default function Bracket({ rounds, onMatchClick, currentMatchId }: Props) {
   if (rounds.length === 0) {
     return (
-      <div className="bg-card border border-border rounded-2xl p-6 text-center text-muted text-sm">
-        Сетка ещё не построена
+      <div className="bg-card border border-border rounded-2xl p-8 text-center">
+        <div className="flex justify-center mb-3">
+          <div className="w-14 h-14 rounded-2xl bg-card2 border border-border flex items-center justify-center">
+            <Trophy className="w-7 h-7 text-muted" strokeWidth={1.5} />
+          </div>
+        </div>
+        <div className="text-muted text-sm">Сетка ещё не построена</div>
       </div>
     );
   }
@@ -31,54 +37,65 @@ export default function Bracket({ rounds, onMatchClick, currentMatchId }: Props)
           className="space-y-3"
         >
           <div className="flex items-center gap-2 px-1">
-            <div className="text-white font-bold text-sm uppercase tracking-wide">
+            <div className="text-white font-bold text-[11px] uppercase tracking-[0.2em]">
               {roundName(rIdx + 1, totalRounds)}
             </div>
             <div className="flex-1 h-px bg-border" />
-            <div className="text-muted text-[10px]">
+            <div className="text-muted text-[10px] uppercase tracking-wider">
               {round.length} {round.length === 1 ? 'матч' : 'матча'}
             </div>
           </div>
 
           <div className="space-y-2">
-            {round.map((match, mIdx) => (
-              <div
-                key={mIdx}
-                className={`bg-bg/40 border rounded-2xl p-2 space-y-1 ${
-                  match.matchId === currentMatchId
-                    ? 'border-white shadow-glowStrong'
-                    : 'border-border'
-                }`}
-              >
-                <TeamCard
-                  team={match.team1}
-                  winner={match.winner?.id === match.team1?.id && !!match.winner}
-                  compact
-                  onClick={
-                    match.team1 && match.matchId && onMatchClick
-                      ? () => onMatchClick(match)
-                      : undefined
-                  }
-                />
+            {round.map((match, mIdx) => {
+              const isCurrent = match.matchId === currentMatchId;
+              const hasWinner = !!match.winner;
+              return (
+                <motion.div
+                  key={mIdx}
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: rIdx * 0.08 + mIdx * 0.03 }}
+                  className={`bg-bg/40 border rounded-2xl p-2 space-y-1 transition-all duration-300 ${
+                    isCurrent
+                      ? 'border-white shadow-glowStrong'
+                      : hasWinner
+                      ? 'border-white/20'
+                      : 'border-border'
+                  }`}
+                >
+                  <TeamCard
+                    team={match.team1}
+                    winner={match.winner?.id === match.team1?.id && !!match.winner}
+                    compact
+                    onClick={
+                      match.team1 && match.matchId && onMatchClick
+                        ? () => onMatchClick(match)
+                        : undefined
+                    }
+                  />
 
-                <div className="flex items-center justify-center">
-                  <div className="text-muted text-[10px] tracking-widest">
-                    VS
+                  <div className="flex items-center justify-center py-0.5">
+                    <div className="flex items-center gap-1.5 text-muted">
+                      <div className="w-6 h-px bg-border" />
+                      <Swords className="w-3 h-3" />
+                      <div className="w-6 h-px bg-border" />
+                    </div>
                   </div>
-                </div>
 
-                <TeamCard
-                  team={match.team2}
-                  winner={match.winner?.id === match.team2?.id && !!match.winner}
-                  compact
-                  onClick={
-                    match.team2 && match.matchId && onMatchClick
-                      ? () => onMatchClick(match)
-                      : undefined
-                  }
-                />
-              </div>
-            ))}
+                  <TeamCard
+                    team={match.team2}
+                    winner={match.winner?.id === match.team2?.id && !!match.winner}
+                    compact
+                    onClick={
+                      match.team2 && match.matchId && onMatchClick
+                        ? () => onMatchClick(match)
+                        : undefined
+                    }
+                  />
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
       ))}

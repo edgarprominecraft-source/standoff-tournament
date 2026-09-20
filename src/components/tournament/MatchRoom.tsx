@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Send, MessageCircle, Gamepad2, Swords, User as UserIcon } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess } from '../../lib/telegram';
 import ConfirmBar from './ConfirmBar';
@@ -45,7 +46,6 @@ export default function MatchRoom({
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // ===== Загрузка сообщений =====
   const loadMessages = async () => {
     const { data } = await supabase
       .from('match_messages')
@@ -78,7 +78,6 @@ export default function MatchRoom({
 
   useEffect(() => {
     loadMessages();
-
     const channel = supabase
       .channel(`chat-${matchId}`)
       .on(
@@ -92,35 +91,26 @@ export default function MatchRoom({
         () => loadMessages()
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [matchId]);
 
-  // ===== Автоскролл чата =====
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages.length]);
 
-  // ===== Отправка сообщения =====
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || sending) return;
-
     setSending(true);
     haptic('light');
-
     const { error } = await supabase.from('match_messages').insert({
       match_id: matchId,
       user_id: user.user_id,
       text: text.slice(0, 500),
     });
-
     setSending(false);
-
     if (!error) {
       setInput('');
       hapticSuccess();
@@ -131,7 +121,6 @@ export default function MatchRoom({
     if (e.key === 'Enter') sendMessage();
   };
 
-  // ===== Завершение матча (заглушка для будущей логики) =====
   const reportResult = async (winnerTeamId: number) => {
     hapticSuccess();
     await supabase
@@ -141,6 +130,9 @@ export default function MatchRoom({
     setTimeout(onClose, 500);
   };
 
+  const stageLabel =
+    stage === 'confirm' ? 'Подтверждение' : stage === 'picks' ? 'Пик карты' : 'Матч';
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -148,30 +140,24 @@ export default function MatchRoom({
       exit={{ opacity: 0, y: 20 }}
       className="fixed inset-0 bg-bg z-50 flex flex-col"
     >
-      {/* Заголовок */}
-      <div className="border-b border-border p-4 flex items-center gap-3">
+      <div className="border-b border-border p-4 flex items-center gap-3 sticky top-0 bg-bg/95 backdrop-blur z-10">
         <button
           onClick={onClose}
-          className="text-muted hover:text-white text-xl"
+          className="p-2 rounded-xl bg-card border border-border hover:border-white/30 transition-colors"
         >
-          ←
+          <ArrowLeft className="w-4 h-4 text-white" />
         </button>
         <div className="flex-1 min-w-0">
-          <div className="text-white text-sm font-bold truncate">
-            {team1Name} <span className="text-muted">vs</span> {team2Name}
+          <div className="text-white text-sm font-bold truncate flex items-center gap-2">
+            <span className="truncate">{team1Name}</span>
+            <Swords className="w-3.5 h-3.5 text-muted flex-shrink-0" />
+            <span className="truncate">{team2Name}</span>
           </div>
-          <div className="text-muted text-[10px] uppercase tracking-widest">
-            {stage === 'confirm'
-              ? 'Подтверждение'
-              : stage === 'picks'
-              ? 'Пик карты'
-              : 'Матч'}
-          </div>
+          <div className="text-muted text-[10px] uppercase tracking-widest">{stageLabel}</div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Стадия 1: Подтверждение */}
         {stage === 'confirm' && (
           <div className="p-4">
             <ConfirmBar
@@ -180,26 +166,33 @@ export default function MatchRoom({
               team2Id={team2Id}
               myTeamId={myTeamId}
               user={user}
-              onBothConfirmed={() => {
-                setStage('picks');
-              }}
+              onBothConfirmed={() => setStage('picks')}
             />
 
             <div className="mt-4 bg-card border border-border rounded-2xl p-4">
-              <div className="text-white font-bold text-sm mb-2">
-                Что происходит?
-              </div>
-              <ul className="text-muted text-xs space-y-1 leading-relaxed">
-                <li>• Обе команды жмут «Я в сети»</li>
-                <li>• Таймер: 3 минуты на всё</li>
-                <li>• Если команда не подтвердила — вылет</li>
-                <li>• После подтверждения — выбор карты</li>
+              <div className="text-white font-bold text-sm mb-3">Что происходит</div>
+              <ul className="text-muted text-xs space-y-2 leading-relaxed">
+                <li className="flex gap-2">
+                  <span className="text-white/40">—</span>
+                  <span>Обе команды нажимают «Я в сети»</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-white/40">—</span>
+                  <span>Таймер: 3 минуты на всё</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-white/40">—</span>
+                  <span>Если команда не подтвердила — вылет</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-white/40">—</span>
+                  <span>После подтверждения — выбор карты</span>
+                </li>
               </ul>
             </div>
           </div>
         )}
 
-        {/* Стадия 2: Пик карт */}
         {stage === 'picks' && (
           <div className="p-4">
             <MapPicker
@@ -216,34 +209,43 @@ export default function MatchRoom({
           </div>
         )}
 
-        {/* Стадия 3: Матч готов */}
         {stage === 'ready' && (
           <div className="p-4 space-y-3">
-            <div className="bg-card border border-white/40 rounded-2xl p-5 text-center">
-              <div className="text-4xl mb-2">🎮</div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-card border border-white/40 rounded-2xl p-6 text-center"
+            >
+              <motion.div
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 200 }}
+                className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/5 border border-white/30 mb-3"
+              >
+                <Gamepad2 className="w-7 h-7 text-white" strokeWidth={1.5} />
+              </motion.div>
               <div className="text-white font-bold mb-1">Матч готов</div>
               {selectedMap && (
                 <div className="text-muted text-xs mb-3">
-                  Карта: <span className="text-white">{selectedMap}</span>
+                  Карта: <span className="text-white font-semibold">{selectedMap}</span>
                 </div>
               )}
-              <div className="text-muted text-xs">
+              <div className="text-muted text-xs leading-relaxed">
                 Создайте лобби в Standoff 2 и играйте. Ниже — чат с соперником.
               </div>
-            </div>
+            </motion.div>
 
-            {/* Кнопки репорта результата (для капитана) */}
             {myTeamId && (
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => reportResult(team1Id)}
-                  className="bg-white/10 border border-border text-white text-xs rounded-xl py-3"
+                  className="bg-white/5 border border-border text-white text-xs rounded-xl py-3 hover:bg-white/10 transition-colors font-semibold"
                 >
                   Победила {team1Name}
                 </button>
                 <button
                   onClick={() => reportResult(team2Id)}
-                  className="bg-white/10 border border-border text-white text-xs rounded-xl py-3"
+                  className="bg-white/5 border border-border text-white text-xs rounded-xl py-3 hover:bg-white/10 transition-colors font-semibold"
                 >
                   Победила {team2Name}
                 </button>
@@ -252,26 +254,19 @@ export default function MatchRoom({
           </div>
         )}
 
-        {/* ===== ЧАТ (виден на всех стадиях) ===== */}
         <div className="px-4 pb-4">
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-              <div className="text-white text-xs font-bold uppercase tracking-wide">
-                💬 Чат матча
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-3.5 h-3.5 text-white" />
+                <div className="text-white text-xs font-bold uppercase tracking-wide">Чат матча</div>
               </div>
-              <div className="text-muted text-[10px]">
-                {messages.length} сообщ.
-              </div>
+              <div className="text-muted text-[10px]">{messages.length} сообщ.</div>
             </div>
 
-            <div
-              ref={scrollRef}
-              className="h-64 overflow-y-auto px-4 py-3 space-y-3"
-            >
+            <div ref={scrollRef} className="h-64 overflow-y-auto px-4 py-3 space-y-3">
               {messages.length === 0 ? (
-                <div className="text-muted text-xs text-center py-8">
-                  Напиши первым
-                </div>
+                <div className="text-muted text-xs text-center py-8">Напиши первым</div>
               ) : (
                 <AnimatePresence initial={false}>
                   {messages.map((m) => {
@@ -281,26 +276,18 @@ export default function MatchRoom({
                         key={m.id}
                         initial={{ opacity: 0, y: 5 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className={`flex gap-2 ${
-                          mine ? 'flex-row-reverse' : ''
-                        }`}
+                        className={`flex gap-2 ${mine ? 'flex-row-reverse' : ''}`}
                       >
-                        {m.author_photo ? (
-                          <img
-                            src={m.author_photo}
-                            alt=""
-                            className="w-7 h-7 rounded-full object-cover border border-border flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-card2 border border-border flex items-center justify-center text-[10px] flex-shrink-0">
-                            👤
-                          </div>
-                        )}
+                        <div className="w-7 h-7 rounded-full bg-card2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {m.author_photo ? (
+                            <img src={m.author_photo} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <UserIcon className="w-3.5 h-3.5 text-muted" strokeWidth={1.5} />
+                          )}
+                        </div>
                         <div
                           className={`max-w-[70%] rounded-2xl px-3 py-2 ${
-                            mine
-                              ? 'bg-white text-black'
-                              : 'bg-card2 text-white'
+                            mine ? 'bg-white text-black' : 'bg-card2 text-white'
                           }`}
                         >
                           {!mine && (
@@ -317,7 +304,6 @@ export default function MatchRoom({
               )}
             </div>
 
-            {/* Поле ввода */}
             <div className="p-3 border-t border-border flex gap-2">
               <input
                 value={input}
@@ -325,14 +311,14 @@ export default function MatchRoom({
                 onKeyDown={handleKey}
                 placeholder="Сообщение..."
                 maxLength={500}
-                className="flex-1 bg-bg border border-border rounded-xl px-3 py-2 text-white text-sm"
+                className="flex-1 bg-bg border border-border rounded-xl px-3 py-2.5 text-white text-sm focus:border-white/40 transition-colors"
               />
               <button
                 onClick={sendMessage}
                 disabled={!input.trim() || sending}
-                className="bg-white text-black font-bold rounded-xl px-4 py-2 text-sm disabled:opacity-40"
+                className="bg-white text-black font-bold rounded-xl px-4 py-2.5 disabled:opacity-40 hover:bg-white/90 transition-colors flex items-center justify-center"
               >
-                →
+                <Send className="w-4 h-4" />
               </button>
             </div>
           </div>

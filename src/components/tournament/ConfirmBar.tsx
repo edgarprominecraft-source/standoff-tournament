@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AlertTriangle, CheckCircle2, Clock, Check, ShieldCheck } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
 
@@ -9,7 +10,7 @@ type Props = {
   team2Id: number;
   myTeamId: number | null;
   user: User;
-  confirmWindow?: number; // сколько секунд даётся на подтверждение (по умолчанию 180)
+  confirmWindow?: number;
   onBothConfirmed: () => void;
 };
 
@@ -49,7 +50,6 @@ export default function ConfirmBar({
 
   useEffect(() => {
     loadRows();
-
     const channel = supabase
       .channel(`confirms-${matchId}`)
       .on(
@@ -63,16 +63,11 @@ export default function ConfirmBar({
         () => loadRows()
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [matchId]);
 
-  // Таймер обратного отсчёта
   useEffect(() => {
     if (!started || secondsLeft <= 0) return;
-
     const t = setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
@@ -83,16 +78,13 @@ export default function ConfirmBar({
         return s - 1;
       });
     }, 1000);
-
     return () => clearInterval(t);
   }, [started]);
 
   const handleTimeout = async () => {
-    // Кто не подтвердил — тот вылетает
     const confirmedTeamIds = new Set(
       rows.filter((r) => r.confirmed).map((r) => r.team_id)
     );
-
     const team1Ok = confirmedTeamIds.has(team1Id);
     const team2Ok = confirmedTeamIds.has(team2Id);
 
@@ -107,26 +99,22 @@ export default function ConfirmBar({
         .update({ winner_id: team2Id, status: 'done' })
         .eq('id', matchId);
     }
-    // Если никто не подтвердил — матч отменяется (можно обработать позже)
   };
 
   const confirmMyTeam = async () => {
     if (!myTeamId) return;
     haptic('medium');
-
     const existing = rows.find((r) => r.team_id === myTeamId);
     if (existing?.confirmed) {
       hapticError();
       return;
     }
-
     if (existing) {
       const { error } = await supabase
         .from('match_confirms')
         .update({ confirmed: true, confirmed_at: new Date().toISOString() })
         .eq('id', existing.id);
-      if (error) hapticError();
-      else hapticSuccess();
+      if (error) hapticError(); else hapticSuccess();
     } else {
       const { error } = await supabase.from('match_confirms').insert({
         match_id: matchId,
@@ -134,76 +122,65 @@ export default function ConfirmBar({
         confirmed: true,
         confirmed_at: new Date().toISOString(),
       });
-      if (error) hapticError();
-      else hapticSuccess();
+      if (error) hapticError(); else hapticSuccess();
     }
   };
 
-  // Проверка, что обе команды подтвердили
   const team1Confirmed = rows.find((r) => r.team_id === team1Id)?.confirmed;
   const team2Confirmed = rows.find((r) => r.team_id === team2Id)?.confirmed;
 
   useEffect(() => {
-    if (team1Confirmed && team2Confirmed) {
-      onBothConfirmed();
-    }
+    if (team1Confirmed && team2Confirmed) onBothConfirmed();
   }, [team1Confirmed, team2Confirmed]);
 
-  // Моё состояние
   const myRow = myTeamId ? rows.find((r) => r.team_id === myTeamId) : null;
   const iConfirmed = !!myRow?.confirmed;
 
-  // Формат времени
   const mm = Math.floor(secondsLeft / 60);
   const ss = secondsLeft % 60;
   const timeStr = `${mm}:${ss.toString().padStart(2, '0')}`;
-
   const criticalTime = secondsLeft <= 30;
 
   if (loading) {
     return (
-      <div className="text-muted text-center py-4 text-sm">
-        Загрузка подтверждения...
+      <div className="flex flex-col items-center justify-center py-8 gap-3">
+        <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="text-muted text-[10px] uppercase tracking-widest">Загрузка</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {/* Таймер */}
       <motion.div
-        animate={
-          criticalTime ? { scale: [1, 1.03, 1] } : { scale: 1 }
-        }
-        transition={
-          criticalTime
-            ? { duration: 1, repeat: Infinity, ease: 'easeInOut' }
-            : {}
-        }
-        className={`rounded-2xl p-4 border text-center ${
+        animate={criticalTime ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+        transition={criticalTime ? { duration: 1, repeat: Infinity, ease: 'easeInOut' } : {}}
+        className={`rounded-2xl p-5 border text-center transition-colors ${
           criticalTime
             ? 'bg-red-500/10 border-red-500/60'
             : 'bg-card border-border'
         }`}
       >
-        <div className="text-muted text-xs uppercase tracking-widest mb-1">
-          {criticalTime ? '⚠️ Осталось мало!' : 'До начала матча'}
+        <div className="flex items-center justify-center gap-2 mb-1">
+          {criticalTime && <AlertTriangle className="w-3 h-3 text-red-400" />}
+          <div className={`text-[10px] uppercase tracking-widest ${criticalTime ? 'text-red-400' : 'text-muted'}`}>
+            {criticalTime ? 'Осталось мало' : 'До начала матча'}
+          </div>
         </div>
         <div
-          className={`font-bold text-3xl tabular-nums ${
+          className={`font-black text-4xl tabular-nums tracking-tight ${
             criticalTime ? 'text-red-400' : 'text-white'
           }`}
         >
           {started ? timeStr : '—:—'}
         </div>
         {!started && (
-          <div className="text-muted text-[10px] mt-1">
+          <div className="text-muted text-[10px] mt-1.5">
             Таймер запустится после первого подтверждения
           </div>
         )}
       </motion.div>
 
-      {/* Статус команд */}
       <div className="grid grid-cols-2 gap-2">
         <TeamStatus
           label="Команда 1"
@@ -217,32 +194,39 @@ export default function ConfirmBar({
         />
       </div>
 
-      {/* Кнопка подтверждения */}
       {myTeamId && (
         <button
           onClick={confirmMyTeam}
           disabled={iConfirmed}
-          className={`w-full font-bold rounded-xl py-4 text-sm transition-colors ${
+          className={`w-full font-bold rounded-xl py-4 text-sm transition-all flex items-center justify-center gap-2 ${
             iConfirmed
               ? 'bg-white/20 text-white cursor-default'
-              : 'bg-white text-black'
+              : 'bg-white text-black hover:bg-white/90'
           }`}
         >
-          {iConfirmed
-            ? '✓ Ты подтвердил'
-            : 'Я в сети — подтвердить участие'}
+          {iConfirmed ? (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              Ты подтвердил
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="w-4 h-4" />
+              Я в сети — подтвердить участие
+            </>
+          )}
         </button>
       )}
 
-      {/* Предупреждение */}
       <AnimatePresence>
         {criticalTime && !iConfirmed && myTeamId && (
           <motion.div
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="bg-red-500/10 border border-red-500/40 rounded-xl p-3 text-xs text-red-400 text-center"
+            className="bg-red-500/10 border border-red-500/40 rounded-xl p-3 text-xs text-red-400 text-center flex items-center justify-center gap-2"
           >
+            <AlertTriangle className="w-3.5 h-3.5" />
             Если не подтвердишь — твоя команда вылетит из турнира
           </motion.div>
         )}
@@ -262,21 +246,34 @@ function TeamStatus({
 }) {
   return (
     <div
-      className={`rounded-2xl p-3 border transition-colors ${
-        confirmed
-          ? 'border-white/60 bg-white/10'
-          : 'border-border bg-card'
+      className={`rounded-2xl p-3 border transition-all duration-300 ${
+        confirmed ? 'border-white/60 bg-white/5' : 'border-border bg-card'
       }`}
     >
-      <div className="text-white text-xs font-semibold mb-1">
-        {label} {isMe && <span className="text-muted">(ты)</span>}
+      <div className="text-white text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+        {label}
+        {isMe && (
+          <span className="text-[9px] uppercase tracking-wider bg-white/10 border border-white/30 rounded px-1 py-0.5">
+            ты
+          </span>
+        )}
       </div>
       <div
-        className={`text-[11px] ${
+        className={`text-[11px] flex items-center gap-1.5 ${
           confirmed ? 'text-white' : 'text-muted'
         }`}
       >
-        {confirmed ? '✓ Подтверждено' : '⏳ Ожидание'}
+        {confirmed ? (
+          <>
+            <Check className="w-3.5 h-3.5 text-green-400" strokeWidth={3} />
+            Подтверждено
+          </>
+        ) : (
+          <>
+            <Clock className="w-3.5 h-3.5" />
+            Ожидание
+          </>
+        )}
       </div>
     </div>
   );

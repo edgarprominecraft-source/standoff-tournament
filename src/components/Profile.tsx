@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { Coins, Palette, Sparkles, User as UserIcon, AlertTriangle } from 'lucide-react';
 import { supabase, type User } from '../supabase';
 import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
 
@@ -7,8 +8,6 @@ type Props = {
   user: User;
   setUser: (u: User) => void;
 };
-
-const NICK_PRICE = 0;
 
 export default function Profile({ user, setUser }: Props) {
   const [nickname, setNickname] = useState(user.nickname ?? '');
@@ -85,20 +84,22 @@ export default function Profile({ user, setUser }: Props) {
         animate={{ opacity: 1, y: 0 }}
         className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4"
       >
-        <div className="w-16 h-16 rounded-full bg-card2 border border-border flex items-center justify-center text-2xl overflow-hidden">
+        <div className="w-16 h-16 rounded-full bg-card2 border border-border flex items-center justify-center overflow-hidden">
           {user.photo_url ? (
             <img src={user.photo_url} alt="" className="w-full h-full object-cover" />
           ) : (
-            '👤'
+            <UserIcon className="w-7 h-7 text-muted" strokeWidth={1.5} />
           )}
         </div>
-        <div className="flex-1">
-          <div className="text-white font-bold text-lg">
+        <div className="flex-1 min-w-0">
+          <div className="text-white font-bold text-lg truncate">
             {user.nickname || user.first_name || 'Игрок'}
           </div>
-          <div className="text-muted text-xs">@{user.username ?? 'нет'}</div>
-          <div className="text-white mt-1 text-sm">
-            💰 Баланс: <span className="font-bold">{user.balance}</span>
+          <div className="text-muted text-xs truncate">@{user.username ?? 'нет'}</div>
+          <div className="text-white mt-1.5 text-sm flex items-center gap-1.5">
+            <Coins className="w-3.5 h-3.5" />
+            <span className="text-muted">Баланс:</span>
+            <span className="font-bold">{user.balance}</span>
           </div>
         </div>
       </motion.div>
@@ -114,8 +115,11 @@ export default function Profile({ user, setUser }: Props) {
       )}
 
       {!user.standoff_id && (
-        <div className="bg-card border border-white/40 rounded-2xl p-5">
-          <div className="text-white font-bold mb-2">⚠️ Standoff ID обязателен</div>
+        <div className="bg-card border border-yellow-500/40 rounded-2xl p-5">
+          <div className="text-white font-bold mb-2 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-yellow-400" />
+            Standoff ID обязателен
+          </div>
           <p className="text-muted text-xs mb-3">
             Без Standoff ID ты не сможешь участвовать в турнирах. Тебя выкинет из сетки.
           </p>
@@ -123,7 +127,7 @@ export default function Profile({ user, setUser }: Props) {
             value={standoffId}
             onChange={(e) => setStandoffId(e.target.value.replace(/\D/g, ''))}
             placeholder="Например: 12345678"
-            className="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white text-sm mb-3"
+            className="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white text-sm mb-3 focus:border-white/50 transition-colors"
           />
           <button
             onClick={saveStandoffId}
@@ -142,7 +146,7 @@ export default function Profile({ user, setUser }: Props) {
           onChange={(e) => setNickname(e.target.value)}
           placeholder="Введи ник"
           maxLength={16}
-          className="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white text-sm mb-3"
+          className="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white text-sm mb-3 focus:border-white/50 transition-colors"
         />
         <button
           onClick={saveNickname}
@@ -161,20 +165,30 @@ export default function Profile({ user, setUser }: Props) {
         <div className="space-y-2">
           <button
             onClick={() => haptic('light')}
-            className="w-full text-left bg-bg border border-border rounded-xl px-4 py-3 text-sm text-muted flex justify-between"
+            className="w-full text-left bg-bg border border-border rounded-xl px-4 py-3 text-sm text-muted flex items-center justify-between hover:border-white/30 transition-colors"
           >
-            <span>🎨 Фон профиля</span>
-            <span className="text-white">1000 💰</span>
+            <span className="flex items-center gap-2 text-white">
+              <Palette className="w-4 h-4" />
+              Фон профиля
+            </span>
+            <span className="text-white flex items-center gap-1">
+              1000 <Coins className="w-3 h-3" />
+            </span>
           </button>
           <button
             onClick={() => haptic('light')}
-            className="w-full text-left bg-bg border border-border rounded-xl px-4 py-3 text-sm text-muted flex justify-between"
+            className="w-full text-left bg-bg border border-border rounded-xl px-4 py-3 text-sm text-muted flex items-center justify-between hover:border-white/30 transition-colors"
           >
-            <span>✨ Цветной ник</span>
-            <span className="text-white">500 💰</span>
+            <span className="flex items-center gap-2 text-white">
+              <Sparkles className="w-4 h-4" />
+              Цветной ник
+            </span>
+            <span className="text-white flex items-center gap-1">
+              500 <Coins className="w-3 h-3" />
+            </span>
           </button>
         </div>
-        <p className="text-muted text-[10px] mt-2">
+        <p className="text-muted text-[10px] mt-3">
           Валюта начисляется за участие в турнирах. Даже за проигрыш.
         </p>
       </div>

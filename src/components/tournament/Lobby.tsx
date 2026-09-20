@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Users, LogOut, Check, Hourglass } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
 import TeamCard from './TeamCard';
@@ -9,7 +10,7 @@ type Props = {
   tournamentId: number;
   maxTeams: number;
   user: User;
-  onReady: () => void; // вызовется, когда все места заняты
+  onReady: () => void;
 };
 
 type RawTeam = {
@@ -68,18 +69,12 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     });
 
     setTeams(enriched);
-
-    // Если мест больше нет — говорим родителю готовиться
-    if (enriched.length >= maxTeams) {
-      onReady();
-    }
+    if (enriched.length >= maxTeams) onReady();
     setLoading(false);
   };
 
   useEffect(() => {
     loadTeams();
-
-    // Realtime подписка на новые команды
     const channel = supabase
       .channel(`lobby-${tournamentId}`)
       .on(
@@ -93,13 +88,9 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         () => loadTeams()
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [tournamentId]);
 
-  // Проверка: я уже в лобби?
   const myTeam = teams.find(
     (t) => t.player1_id === user.user_id || t.player2_id === user.user_id
   );
@@ -126,22 +117,14 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     setJoining(true);
     haptic('medium');
 
-    // Ищем команду с 1 игроком, чтобы встать к нему в пару
     const lonely = teams.find((t) => !t.player2_id);
-
     if (lonely) {
       const { error } = await supabase
         .from('teams')
         .update({ player2_id: user.user_id })
         .eq('id', lonely.id);
-
-      if (error) {
-        hapticError();
-        setMsg(error.message);
-      } else {
-        hapticSuccess();
-        setMsg('Ты присоединился к команде!');
-      }
+      if (error) { hapticError(); setMsg(error.message); }
+      else { hapticSuccess(); setMsg('Ты присоединился к команде'); }
     } else {
       const side = Math.random() < 0.5 ? 'left' : 'right';
       const { error } = await supabase.from('teams').insert({
@@ -150,14 +133,8 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         player2_id: null,
         side,
       });
-
-      if (error) {
-        hapticError();
-        setMsg(error.message);
-      } else {
-        hapticSuccess();
-        setMsg('Ты в лобби! Ждём напарника.');
-      }
+      if (error) { hapticError(); setMsg(error.message); }
+      else { hapticSuccess(); setMsg('Ты в лобби. Ждём напарника.'); }
     }
     setJoining(false);
   };
@@ -165,21 +142,17 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const leave = async () => {
     if (!myTeam) return;
     haptic('medium');
-
     if (isLeader && hasPartner) {
-      // Если я капитан и есть напарник — просто отцепляюсь, команда остаётся
       await supabase
         .from('teams')
         .update({ player1_id: myTeam.player2_id, player2_id: null })
         .eq('id', myTeam.id);
     } else if (!isLeader) {
-      // Если я второй — отцепляюсь от команды
       await supabase
         .from('teams')
         .update({ player2_id: null })
         .eq('id', myTeam.id);
     } else {
-      // Если я один — удаляю команду
       await supabase.from('teams').delete().eq('id', myTeam.id);
     }
     hapticSuccess();
@@ -188,26 +161,33 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
 
   if (loading) {
     return (
-      <div className="text-muted text-center py-10 text-sm">
-        Загрузка лобби...
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="text-muted text-xs uppercase tracking-widest">Загрузка лобби</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="bg-card border border-border rounded-2xl p-5">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-card border border-border rounded-2xl p-5"
+      >
         <div className="flex justify-between items-center mb-1">
-          <div className="text-white font-bold">🏟 Лобби</div>
-          <div className="text-white text-sm">
-            {teams.length} / {maxTeams}
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-white" />
+            <div className="text-white font-bold">Лобби</div>
+          </div>
+          <div className="text-white text-sm font-bold">
+            {teams.length} <span className="text-muted">/ {maxTeams}</span>
           </div>
         </div>
         <div className="text-muted text-xs">
-          Собери команду 2х2. Если ты один — бот найдёт тебе напарника.
+          Собери команду 2х2. Если ты один — найдём напарника.
         </div>
 
-        {/* Прогресс-бар */}
         <div className="mt-3 h-2 bg-bg rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
@@ -216,7 +196,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
             className="h-full bg-white"
           />
         </div>
-      </div>
+      </motion.div>
 
       {msg && (
         <motion.div
@@ -232,35 +212,49 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         <button
           onClick={joinAsAlone}
           disabled={joining || teams.length >= maxTeams}
-          className="w-full bg-white text-black font-bold rounded-xl py-3 text-sm disabled:opacity-40"
+          className="w-full bg-white text-black font-bold rounded-xl py-3.5 text-sm disabled:opacity-40 hover:bg-white/90 transition-colors"
         >
-          {teams.length >= maxTeams
-            ? 'Мест нет'
-            : joining
-            ? 'Вход...'
-            : 'Войти в лобби'}
+          {teams.length >= maxTeams ? 'Мест нет' : joining ? 'Вход...' : 'Войти в лобби'}
         </button>
       ) : (
-        <div className="bg-card2 border border-border rounded-xl p-4">
-          <div className="text-white text-sm mb-2">
-            Ты в команде {isLeader ? '(капитан)' : ''}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-card2 border border-border rounded-xl p-4"
+        >
+          <div className="text-white text-sm mb-1 font-semibold flex items-center gap-2">
+            {isLeader && (
+              <span className="text-[10px] uppercase tracking-wider bg-white/10 border border-white/30 rounded px-1.5 py-0.5">
+                Капитан
+              </span>
+            )}
+            <span>Ты в команде</span>
           </div>
-          <div className="text-muted text-xs mb-3">
-            {hasPartner
-              ? 'Напарник найден ✓'
-              : 'Ждём напарника... Можешь позвать друга.'}
+          <div className="text-muted text-xs mb-3 flex items-center gap-1.5">
+            {hasPartner ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-green-400" />
+                Напарник найден
+              </>
+            ) : (
+              <>
+                <Hourglass className="w-3.5 h-3.5 text-yellow-400" />
+                Ждём напарника
+              </>
+            )}
           </div>
           <button
             onClick={leave}
-            className="w-full bg-bg border border-border text-muted text-xs rounded-xl py-2"
+            className="w-full bg-bg border border-border text-muted text-xs rounded-xl py-2.5 hover:border-white/30 hover:text-white transition-colors flex items-center justify-center gap-1.5"
           >
+            <LogOut className="w-3.5 h-3.5" />
             Покинуть лобби
           </button>
-        </div>
+        </motion.div>
       )}
 
       <div className="space-y-2">
-        <div className="text-muted text-xs uppercase tracking-wide px-1">
+        <div className="text-muted text-[10px] uppercase tracking-widest px-1">
           Команды
         </div>
         <AnimatePresence>
@@ -271,12 +265,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <TeamCard
-                team={t}
-                winner={
-                  myTeam?.id === t.id
-                }
-              />
+              <TeamCard team={t} winner={myTeam?.id === t.id} />
             </motion.div>
           ))}
         </AnimatePresence>
