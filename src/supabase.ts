@@ -16,6 +16,24 @@ export type User = {
   last_nick_change: string | null;
   bg_color: string | null;
   nickname_color: string | null;
+  // Новые поля
+  avatar_url: string | null;
+  banner_url: string | null;
+  avatar_frame: string | null;
+  nickname_icon: string | null;
+  clan_id: number | null;
+  points: number | null;
+  trust_score: number | null;
+  role: string | null;
+  wins: number | null;
+  losses: number | null;
+  kills: number | null;
+  deaths: number | null;
+  matches_played: number | null;
+  banned: boolean | null;
+  ban_reason: string | null;
+  favorite_map: string | null;
+  created_at?: string;
 };
 
 export type Tournament = {

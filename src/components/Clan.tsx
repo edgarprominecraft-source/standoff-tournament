@@ -417,7 +417,7 @@ function ClanView({
             <div key={m.id} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-bg2 flex items-center justify-center overflow-hidden">
                 {m.user?.avatar_url || m.user?.photo_url ? (
-                  <img src={m.user.avatar_url || m.user.photo_url} alt="" className="w-full h-full object-cover" />
+                  <img src={m.user.avatar_url || m.user.photo_url || ''} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <Users className="w-4 h-4 text-muted" />
                 )}
