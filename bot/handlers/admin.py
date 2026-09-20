@@ -28,6 +28,7 @@ class TournamentForm(StatesGroup):
     sponsor_channel = State()
     max_teams = State()
     prize = State()
+    organizer = State()
 
 
 class SponsorForm(StatesGroup):
@@ -227,33 +228,75 @@ async def tourn_prize(message: types.Message, state: FSMContext):
     try:
         prize = int(message.text.strip())
     except ValueError:
-        await message.answer("❌ Введи число:")
+        await message.answer("Введи число:")
         return
 
+    await state.update_data(prize=prize)
+    await state.set_state(TournamentForm.organizer)
+
+    # Показываем список организаторов
+    res = sb.table("organizers").select("*").order("created_at", desc=True).execute()
+    organizers = res.data or []
+
+    kb = InlineKeyboardBuilder()
+    if organizers:
+        for o in organizers[:15]:
+            kb.button(
+                text=f"🏢 {o['name']}",
+                callback_data=f"admin:t:set_org:{o['id']}"
+            )
+    kb.button(text="Без организатора", callback_data="admin:t:set_org:0")
+    kb.button(text="Отмена", callback_data="admin:tournaments")
+    kb.adjust(1)
+
+    await message.answer(
+        "Выбери <b>организатора</b> для турнира:\n\n"
+        "<i>(Сначала создай в разделе 🏢 Организаторы)</i>",
+        reply_markup=kb.as_markup()
+    )
+
+
+@router.callback_query(F.data.startswith("admin:t:set_org:"))
+async def cb_set_organizer(call: types.CallbackQuery, state: FSMContext):
+    if not await guard(call):
+        return
+    org_id = int(call.data.split(":")[-1])
+
     data = await state.get_data()
+    if not data.get("name"):
+        await call.answer("Начни заново через меню", show_alert=True)
+        return
+
     await state.clear()
+
+    org_id_value = org_id if org_id > 0 else None
 
     try:
         sb.table("tournaments").insert({
             "name": data["name"],
             "sponsor_channel": data.get("sponsor_channel"),
-            "max_teams": data["max_teams"],
-            "prize_gold": prize,
+            "max_teams": data.get("max_teams", 16),
+            "prize_gold": data.get("prize", 0),
+            "organizer_id": org_id_value,
             "status": "waiting",
         }).execute()
 
-        await message.answer(
-            f"✅ Турнир <b>{escape_html(data['name'])}</b> создан!\n\n"
-            f"👥 Команд: {data['max_teams']}\n"
-            f"💰 Приз: {prize} G\n"
-            f"🔗 Спонсор: {data.get('sponsor_channel') or 'нет'}",
+        org_name = "без организатора"
+        if org_id_value:
+            res = sb.table("organizers").select("name").eq("id", org_id_value).maybe_single().execute()
+            if res.data:
+                org_name = res.data["name"]
+
+        await call.message.edit_text(
+            f"Турнир <b>{escape_html(data['name'])}</b> создан!\n\n"
+            f"Команд: {data.get('max_teams', 16)}\n"
+            f"Приз: {data.get('prize', 0)} G\n"
+            f"Организатор: <b>{escape_html(org_name)}</b>",
             reply_markup=admin_menu_kb()
         )
+        await call.answer("Готово")
     except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
-
-
-@router.callback_query(F.data.startswith("admin:t:force_start:"))
+        await call.answer(f"Ошибка: {e}", show_alert=True)@router.callback_query(F.data.startswith("admin:t:force_start:"))
 async def cb_force_start(call: types.CallbackQuery):
     if not await guard(call):
         return
