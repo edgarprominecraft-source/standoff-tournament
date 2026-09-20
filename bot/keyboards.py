@@ -57,8 +57,6 @@ def tournaments_kb(tournaments: list) -> InlineKeyboardMarkup:
 
 def tournament_detail_kb(t_id: int, status: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    if status == "waiting":
-        kb.button(text="▶️ Форс-старт", callback_data=f"admin:t:force_start:{t_id}")
     if status in ("waiting", "active"):
         kb.button(text="🏁 Закончить турнир", callback_data=f"admin:t:finish:{t_id}")
     kb.button(text="🔗 Спонсоры", callback_data=f"admin:t:sponsors:{t_id}")
@@ -66,7 +64,7 @@ def tournament_detail_kb(t_id: int, status: str) -> InlineKeyboardMarkup:
     kb.button(text="✏️ Переименовать", callback_data=f"admin:t:rename:{t_id}")
     kb.button(text="❌ Удалить", callback_data=f"admin:t:delete:{t_id}")
     kb.button(text="⬅️ К списку", callback_data="admin:tournaments")
-    kb.adjust(1, 1, 1, 1, 1, 1, 1)
+    kb.adjust(1, 1, 1, 1, 1, 1)
     return kb.as_markup()
 
 
@@ -169,12 +167,11 @@ def ranks_list_kb() -> InlineKeyboardMarkup:
 def test_menu_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="⚡ Создать тестовый турнир", callback_data="admin:test:tournament")
-    kb.button(text="🎮 Форс-старт всех", callback_data="admin:test:force_start")
     kb.button(text="💰 +1000 монет всем", callback_data="admin:test:coins_all")
     kb.button(text="🪙 +10 жетонов всем", callback_data="admin:test:tokens_all")
     kb.button(text="🧹 Очистить тестовые данные", callback_data="admin:test:clear")
     kb.button(text="⬅️ Назад", callback_data="admin:menu")
-    kb.adjust(1, 1, 1, 1, 1, 1)
+    kb.adjust(1, 1, 1, 1, 1)
     return kb.as_markup()
 
 

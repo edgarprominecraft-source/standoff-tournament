@@ -23,6 +23,8 @@ from utils import check_admin, escape_html, fmt_date, safe_edit, log
 router = Router()
 
 
+# ===== FSM состояния =====
+
 class TournamentForm(StatesGroup):
     name = State()
     sponsor_channel = State()
@@ -160,7 +162,7 @@ async def cb_tournament_new(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(TournamentForm.name)
     await safe_edit(
         call.message,
-        "➕ <b>Создание турнира</b>\n\nШаг 1/4. Напиши <b>название</b>:",
+        "➕ <b>Создание турнира</b>\n\nШаг 1/5. Напиши <b>название</b>:",
         create_tournament_kb()
     )
     await call.answer()
@@ -186,7 +188,7 @@ async def tourn_name(message: types.Message, state: FSMContext):
     await state.update_data(name=name)
     await state.set_state(TournamentForm.sponsor_channel)
     await message.answer(
-        "Шаг 2/4. <b>Username спонсора</b> (канал):\n\n"
+        "Шаг 2/5. <b>Username спонсора</b> (канал):\n\n"
         "Например: <code>@standoff_news</code>\n"
         "Или отправь <code>-</code>:"
     )
@@ -202,7 +204,7 @@ async def tourn_sponsor(message: types.Message, state: FSMContext):
         return
     await state.update_data(sponsor_channel=None if value == "-" else value)
     await state.set_state(TournamentForm.max_teams)
-    await message.answer("Шаг 3/4. Сколько <b>команд</b>? (например 16)")
+    await message.answer("Шаг 3/5. Сколько <b>команд</b>? (например 16)")
 
 
 @router.message(TournamentForm.max_teams)
@@ -218,7 +220,7 @@ async def tourn_max(message: types.Message, state: FSMContext):
         return
     await state.update_data(max_teams=max_teams)
     await state.set_state(TournamentForm.prize)
-    await message.answer("Шаг 4/4. <b>Призовой фонд</b> в голде? (например 500, или 0)")
+    await message.answer("Шаг 4/5. <b>Призовой фонд</b> в голде? (например 500, или 0)")
 
 
 @router.message(TournamentForm.prize)
@@ -228,13 +230,12 @@ async def tourn_prize(message: types.Message, state: FSMContext):
     try:
         prize = int(message.text.strip())
     except ValueError:
-        await message.answer("Введи число:")
+        await message.answer("❌ Введи число:")
         return
 
     await state.update_data(prize=prize)
     await state.set_state(TournamentForm.organizer)
 
-    # Показываем список организаторов
     res = sb.table("organizers").select("*").order("created_at", desc=True).execute()
     organizers = res.data or []
 
@@ -250,7 +251,7 @@ async def tourn_prize(message: types.Message, state: FSMContext):
     kb.adjust(1)
 
     await message.answer(
-        "Выбери <b>организатора</b> для турнира:\n\n"
+        "Шаг 5/5. Выбери <b>организатора</b> для турнира:\n\n"
         "<i>(Сначала создай в разделе 🏢 Организаторы)</i>",
         reply_markup=kb.as_markup()
     )
@@ -296,62 +297,60 @@ async def cb_set_organizer(call: types.CallbackQuery, state: FSMContext):
         )
         await call.answer("Готово")
     except Exception as e:
-        await call.answer(f"Ошибка: {e}", show_alert=True)@router.callback_query(F.data.startswith("admin:t:force_start:"))
-async def cb_force_start(call: types.CallbackQuery):
+        await call.answer(f"Ошибка: {e}", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("admin:t:") & ~F.data.startswith("admin:t:new") & ~F.data.startswith("admin:t:set_org") & ~F.data.startswith("admin:t:finish") & ~F.data.startswith("admin:t:delete") & ~F.data.startswith("admin:t:rename") & ~F.data.startswith("admin:t:sponsors") & ~F.data.startswith("admin:t:organizer"))
+async def cb_tournament_detail(call: types.CallbackQuery):
     if not await guard(call):
         return
-    t_id = int(call.data.split(":")[-1])
+    try:
+        t_id = int(call.data.split(":")[2])
+    except (IndexError, ValueError):
+        await call.answer("Ошибка ID", show_alert=True)
+        return
+
     t = await get_tournament(t_id)
     if not t:
-        await call.answer("Не найден", show_alert=True)
+        await call.answer("Турнир не найден", show_alert=True)
         return
 
-    import random
-    teams_res = sb.table("teams").select("*").eq("tournament_id", t_id).execute()
-    teams = teams_res.data or []
+    try:
+        teams_res = sb.table("teams").select("id", count="exact").eq("tournament_id", t_id).execute()
+        teams_count = teams_res.count or 0
+    except Exception:
+        teams_count = 0
 
-    if len(teams) < 2:
-        await call.answer("Мало команд (минимум 2). Зарегистрируй игроков.", show_alert=True)
-        return
+    sponsors = await get_tournament_sponsors(t_id)
+    sponsors_line = ", ".join([s["name"] for s in sponsors]) if sponsors else "нет"
 
-    if t.get("status") == "active":
-        await call.answer("Уже запущен", show_alert=True)
-        return
+    status_ru = {
+        "waiting": "🟢 Набор",
+        "active": "🔵 Идёт",
+        "finished": "⚫ Завершён",
+    }.get(t.get("status"), "❓")
 
-    sb.table("tournaments").update({"status": "active"}).eq("id", t_id).execute()
-    sb.table("matches").delete().eq("tournament_id", t_id).execute()
+    org_name = "нет"
+    if t.get("organizer_id"):
+        res = sb.table("organizers").select("name").eq("id", t["organizer_id"]).maybe_single().execute()
+        if res.data:
+            org_name = res.data["name"]
 
-    random.shuffle(teams)
+    text = (
+        f"🏆 <b>{escape_html(t['name'])}</b>\n\n"
+        f"📌 Статус: {status_ru}\n"
+        f"👥 Команд: <b>{teams_count}</b> / {t.get('max_teams', 16)}\n"
+        f"💰 Приз: {t.get('prize_gold', 0)} G\n"
+        f"🔗 Спонсоры: {escape_html(sponsors_line)}\n"
+        f"🏢 Организатор: {escape_html(org_name)}\n"
+        f"📅 Создан: {fmt_date(t.get('created_at'))}"
+    )
 
-    size = 1
-    while size < len(teams):
-        size *= 2
+    await safe_edit(call.message, text, tournament_detail_kb(t_id, t.get("status", "waiting")))
+    await call.answer()
 
-    padded = list(teams)
-    while len(padded) < size:
-        padded.append(None)
 
-    matches_created = 0
-    for i in range(0, len(padded), 2):
-        t1 = padded[i]
-        t2 = padded[i + 1]
-        sb.table("matches").insert({
-            "tournament_id": t_id,
-            "team1_id": t1["id"] if t1 else None,
-            "team2_id": t2["id"] if t2 else None,
-            "status": "pending",
-        }).execute()
-        matches_created += 1
-
-    await call.answer(f"Запущен! Создано {matches_created} матчей", show_alert=True)
-    await safe_edit(
-        call.message,
-        f"Турнир <b>{escape_html(t['name'])}</b> запущен!\n\n"
-        f"Команд: <b>{len(teams)}</b>\n"
-        f"Матчей в 1-м раунде: <b>{matches_created}</b>\n\n"
-        f"Сетка на сайте обновилась.",
-        admin_back_kb()
-    )@router.callback_query(F.data.startswith("admin:t:finish:"))
+@router.callback_query(F.data.startswith("admin:t:finish:"))
 async def cb_tournament_finish(call: types.CallbackQuery):
     if not await guard(call):
         return
@@ -853,7 +852,7 @@ async def cb_user_coins(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(CoinsAmount.amount)
     kb = InlineKeyboardBuilder()
     kb.button(text="❌ Отмена", callback_data="admin:users")
-    await safe_edit(call.message, "💰 Напиши <b>число</b> (любое):\n\nНапример: <code>500</code> или <code>-100</code> или <code>999999</code>", kb.as_markup())
+    await safe_edit(call.message, "💰 Напиши <b>число</b> (любое):\n\nНапример: <code>500</code> или <code>-100</code>", kb.as_markup())
     await call.answer()
 
 
@@ -919,77 +918,6 @@ async def tokens_amount(message: types.Message, state: FSMContext):
     await update_user(user_id, tokens=new)
     await message.answer(f"✅ Жетонов: <b>{new}</b>", reply_markup=admin_menu_kb())
 
-
-# ===== ЗВАНИЯ =====
-
-@router.callback_query(F.data == "admin:ranks")
-async def cb_ranks_menu(call: types.CallbackQuery):
-    if not await guard(call):
-        return
-    text = (
-        "🎖 <b>Звания</b>\n\n"
-        "Чтобы выдать звание игроку:\n"
-        "1. Открой 👥 Игроки → Поиск\n"
-        "2. Найди игрока\n"
-        "3. Нажми «🎖 Выдать звание»\n\n"
-        "Или выбери звание здесь для справки:"
-    )
-    await safe_edit(call.message, text, ranks_list_kb())
-    await call.answer()
-
-
-@router.callback_query(F.data.startswith("admin:rank:pick:"))
-async def cb_rank_pick(call: types.CallbackQuery):
-    if not await guard(call):
-        return
-    await call.answer("Сначала найди игрока через 👥 Игроки", show_alert=True)
-
-
-@router.callback_query(F.data.startswith("admin:u:rank:"))
-async def cb_user_rank(call: types.CallbackQuery):
-    if not await guard(call):
-        return
-    user_id = int(call.data.split(":")[-1])
-
-    kb = InlineKeyboardBuilder()
-    for rid, rname in RANKS.items():
-        kb.button(text=rname, callback_data=f"admin:rank:set:{user_id}:{rid}")
-    kb.button(text="Снять звание", callback_data=f"admin:rank:set:{user_id}:none")
-    kb.button(text="Отмена", callback_data="admin:users")
-    kb.adjust(3, 3, 3, 3, 3, 1, 1)
-
-    await safe_edit(
-        call.message,
-        f"Выбери звание для игрока <code>{user_id}</code>:",
-        kb.as_markup()
-    )
-    await call.answer()
-
-
-@router.callback_query(F.data.startswith("admin:rank:set:"))
-async def cb_rank_set(call: types.CallbackQuery):
-    if not await guard(call):
-        return
-    parts = call.data.split(":")
-    user_id = int(parts[3])
-    rank_id = parts[4]
-    if rank_id == "none":
-        rank_id = None
-
-    await update_user(user_id, rank=rank_id)
-
-    if rank_id:
-        rank_text = RANKS.get(rank_id, rank_id)
-        await call.answer(f"Звание: {rank_text}", show_alert=True)
-    else:
-        rank_text = "-"
-        await call.answer("Звание снято", show_alert=True)
-
-    await safe_edit(
-        call.message,
-        f"Игроку <code>{user_id}</code> установлено: <b>{rank_text}</b>",
-        admin_back_kb()
-    )
 
 @router.callback_query(F.data.startswith("admin:u:clearid:"))
 async def cb_user_clearid(call: types.CallbackQuery):
@@ -1069,8 +997,72 @@ async def cb_banned(call: types.CallbackQuery):
     await call.answer()
 
 
+# ===== ЗВАНИЯ =====
+
+@router.callback_query(F.data == "admin:ranks")
+async def cb_ranks_menu(call: types.CallbackQuery):
+    if not await guard(call):
+        return
+    text = (
+        "🎖 <b>Звания</b>\n\n"
+        "Чтобы выдать звание игроку:\n"
+        "1. Открой 👥 Игроки → Поиск\n"
+        "2. Найди игрока\n"
+        "3. Нажми «🎖 Выдать звание»"
+    )
+    await safe_edit(call.message, text, admin_back_kb())
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("admin:u:rank:"))
+async def cb_user_rank(call: types.CallbackQuery):
+    if not await guard(call):
+        return
+    user_id = int(call.data.split(":")[-1])
+
+    kb = InlineKeyboardBuilder()
+    for rid, rname in RANKS.items():
+        kb.button(text=rname, callback_data=f"admin:rank:set:{user_id}:{rid}")
+    kb.button(text="🚫 Снять звание", callback_data=f"admin:rank:set:{user_id}:none")
+    kb.button(text="⬅️ Отмена", callback_data="admin:users")
+    kb.adjust(3, 3, 3, 3, 3, 1, 1)
+
+    await safe_edit(
+        call.message,
+        f"🎖 Выбери <b>звание</b> для игрока <code>{user_id}</code>:",
+        kb.as_markup()
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("admin:rank:set:"))
+async def cb_rank_set(call: types.CallbackQuery):
+    if not await guard(call):
+        return
+    parts = call.data.split(":")
+    user_id = int(parts[3])
+    rank_id = parts[4]
+    if rank_id == "none":
+        rank_id = None
+
+    await update_user(user_id, rank=rank_id)
+
+    if rank_id:
+        rank_text = RANKS.get(rank_id, rank_id)
+        await call.answer(f"Звание: {rank_text}", show_alert=True)
+    else:
+        rank_text = "—"
+        await call.answer("Звание снято", show_alert=True)
+
+    await safe_edit(
+        call.message,
+        f"✅ Игроку <code>{user_id}</code> установлено: <b>{rank_text}</b>",
+        admin_back_kb()
+    )
+
+
 # ========================================
-# ========== МОНЕТЫ / МАССОВЫЕ ==========
+# ========== МОНЕТЫ =====================
 # ========================================
 
 @router.callback_query(F.data == "admin:coins")
@@ -1203,7 +1195,7 @@ async def cb_logs(call: types.CallbackQuery):
 async def cb_test(call: types.CallbackQuery):
     if not await guard(call):
         return
-    await safe_edit(call.message, "🧪 <b>Тестовые функции</b>\n\nВыбери действие:", test_menu_kb())
+    await safe_edit(call.message, "🧪 <b>Тестовые функции</b>", test_menu_kb())
     await call.answer()
 
 
@@ -1218,21 +1210,9 @@ async def cb_test_tournament(call: types.CallbackQuery):
             "prize_gold": 100,
             "status": "waiting",
         }).execute()
-        await call.answer("✅ Тестовый турнир создан (4 команды, 100G)", show_alert=True)
+        await call.answer("✅ Тестовый турнир создан", show_alert=True)
     except Exception as e:
         await call.answer(f"❌ {e}", show_alert=True)
-
-
-@router.callback_query(F.data == "admin:test:force_start")
-async def cb_test_force_start(call: types.CallbackQuery):
-    if not await guard(call):
-        return
-    res = sb.table("tournaments").select("id").eq("status", "waiting").execute()
-    count = 0
-    for t in (res.data or []):
-        sb.table("tournaments").update({"status": "active"}).eq("id", t["id"]).execute()
-        count += 1
-    await call.answer(f"✅ Запущено {count} турниров", show_alert=True)
 
 
 @router.callback_query(F.data == "admin:test:coins_all")
@@ -1261,7 +1241,6 @@ async def cb_test_tokens_all(call: types.CallbackQuery):
 async def cb_test_clear(call: types.CallbackQuery):
     if not await guard(call):
         return
-    # Удаляем турниры с "Тест" в названии
     res = sb.table("tournaments").select("id").like("name", "🧪 Тест%").execute()
     for t in (res.data or []):
         sb.table("tournaments").delete().eq("id", t["id"]).execute()

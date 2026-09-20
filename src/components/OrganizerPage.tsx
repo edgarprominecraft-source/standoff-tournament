@@ -340,7 +340,9 @@ function TournamentBracketView({
           <Trophy className="w-12 h-12 text-muted mx-auto mb-3" strokeWidth={1.5} />
           <div className="text-black font-bold mb-2">Сетка ещё не создана</div>
           <p className="text-muted text-xs leading-relaxed">
-            Открой бот → /admin → 🏆 Турниры → выбери турнир → <b>▶️ Форс-старт</b>
+            Сетка появится когда создадутся матчи
+
+
           </p>
         </div>
       ) : (
