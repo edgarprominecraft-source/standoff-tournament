@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Check, X, Clock, Swords } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { MAPS, BO1_SEQUENCE, type GameMap } from '../../lib/cards';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
@@ -46,62 +47,36 @@ export default function MapPicker({
 
   useEffect(() => {
     loadPicks();
-
     const channel = supabase
       .channel(`picks-${matchId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'map_picks',
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => loadPicks()
-      )
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'map_picks',
+        filter: `match_id=eq.${matchId}`,
+      }, () => loadPicks())
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [matchId]);
 
-  // Какая карта сейчас забанена
   const bannedIds = new Set(picks.map((p) => p.map_name));
-
-  // Текущий шаг пик/бана
-  const step = picks.length; // сколько уже сделано
+  const step = picks.length;
   const totalSteps = BO1_SEQUENCE.length;
-
   const currentStep = step < totalSteps ? BO1_SEQUENCE[step] : null;
-
-  // Чья сейчас очередь — 1 или 2
   const currentTeamNumeric = currentStep?.team ?? null;
   const currentTeamId =
     currentTeamNumeric === 1 ? team1Id : currentTeamNumeric === 2 ? team2Id : null;
-
   const isMyTurn = myTeamId !== null && currentTeamId === myTeamId;
-
-  // Оставшаяся карта — та, на которой играют
   const remainingMaps = MAPS.filter((m) => !bannedIds.has(m.id));
   const finalMap = remainingMaps.length === 1 ? remainingMaps[0] : null;
 
   useEffect(() => {
-    if (finalMap) {
-      onMapSelected(finalMap.id);
-    }
+    if (finalMap) onMapSelected(finalMap.id);
   }, [finalMap?.id]);
 
   const banMap = async (map: GameMap) => {
     if (!isMyTurn || !currentStep || !myTeamId) return;
-    if (bannedIds.has(map.id)) {
-      hapticError();
-      return;
-    }
-
+    if (bannedIds.has(map.id)) { hapticError(); return; }
     setSubmitting(true);
     haptic('medium');
-
     const { error } = await supabase.from('map_picks').insert({
       match_id: matchId,
       team_id: myTeamId,
@@ -109,108 +84,155 @@ export default function MapPicker({
       action: currentStep.action,
       order_num: step + 1,
     });
-
     setSubmitting(false);
-
-    if (error) {
-      hapticError();
-    } else {
-      hapticSuccess();
-    }
+    if (error) hapticError(); else hapticSuccess();
   };
 
   if (loading) {
     return (
-      <div className="text-muted text-center py-6 text-sm">
-        Загрузка карт...
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="text-muted text-xs uppercase tracking-widest">Загрузка карт</div>
       </div>
     );
   }
 
-  // Матч уже готов — показать финальную карту
   if (finalMap) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-card border border-white/40 rounded-2xl p-5 text-center shadow-glow"
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+        className="relative rounded-3xl overflow-hidden border border-white/40"
       >
-        <div className="text-muted text-xs uppercase tracking-widest mb-2">
-          Карта выбрана
-        </div>
-        <div className="text-white font-bold text-2xl mb-1">{finalMap.name}</div>
-        <div className="text-muted text-xs">
-          Режим: {finalMap.mode === 'defuse' ? 'Defuse' : finalMap.mode}
-        </div>
-        <div className="mt-3 text-white text-sm">
-          Готовьтесь к матчу!
+        <div className={`absolute inset-0 ${finalMap.gradient} opacity-60`} />
+        <div className="absolute inset-0 bg-gradient-to-t from-bg via-transparent to-transparent" />
+        <div className="relative p-8 text-center">
+          <motion.div
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+            className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 border border-white/30 mb-4 backdrop-blur"
+          >
+            <Swords className="w-8 h-8 text-white" />
+          </motion.div>
+          <div className="text-muted text-[10px] uppercase tracking-[0.3em] mb-2">
+            Карта выбрана
+          </div>
+          <div className="text-white font-black text-3xl mb-1 tracking-tight">
+            {finalMap.name}
+          </div>
+          <div className="text-white/60 text-xs uppercase tracking-widest">
+            {finalMap.mode === 'defuse' ? 'Defuse' : finalMap.mode}
+          </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="mt-4 text-white/80 text-sm font-semibold"
+          >
+            Готовьтесь к матчу
+          </motion.div>
         </div>
       </motion.div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Статус */}
-      <div
-        className={`rounded-2xl p-4 border transition-colors ${
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`rounded-2xl p-5 border transition-all duration-300 ${
           isMyTurn
-            ? 'bg-white text-black border-white'
+            ? 'bg-white text-black border-white shadow-glowStrong'
             : 'bg-card border-border text-white'
         }`}
       >
-        <div className="font-bold text-sm mb-1">
-          {isMyTurn
-            ? `🎯 Твоя очередь ${currentStep?.action === 'ban' ? 'банить' : 'выбирать'}`
-            : '⏳ Ожидание соперника'}
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-xl ${isMyTurn ? 'bg-black/10' : 'bg-white/10'}`}>
+            <Clock className={`w-5 h-5 ${isMyTurn ? 'text-black' : 'text-white'}`} />
+          </div>
+          <div className="flex-1">
+            <div className="font-black text-sm uppercase tracking-wide">
+              {isMyTurn
+                ? `Твоя очередь ${currentStep?.action === 'ban' ? 'банить' : 'выбирать'}`
+                : 'Ход соперника'}
+            </div>
+            <div className={`text-xs mt-0.5 ${isMyTurn ? 'text-black/60' : 'text-muted'}`}>
+              Шаг {step + 1} / {totalSteps} · осталось карт: {MAPS.length - bannedIds.size}
+            </div>
+          </div>
+          {isMyTurn && (
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="w-2 h-2 rounded-full bg-black"
+            />
+          )}
         </div>
-        <div
-          className={`text-xs ${isMyTurn ? 'text-black/60' : 'text-muted'}`}
-        >
-          Шаг {step + 1} из {totalSteps}. Осталось карт:{' '}
-          {MAPS.length - bannedIds.size}
-        </div>
-      </div>
+      </motion.div>
 
       {/* Сетка карт */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         <AnimatePresence>
-          {MAPS.map((map) => {
+          {MAPS.map((map, idx) => {
             const isBanned = bannedIds.has(map.id);
+            const disabled = !isMyTurn || isBanned || submitting;
             return (
               <motion.button
                 key={map.id}
                 onClick={() => banMap(map)}
-                disabled={!isMyTurn || isBanned || submitting}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{
-                  opacity: isBanned ? 0.25 : 1,
-                  scale: 1,
-                }}
-                whileTap={isMyTurn && !isBanned ? { scale: 0.95 } : {}}
-                className={`relative rounded-2xl border p-3 text-left transition-colors ${
+                disabled={disabled}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ delay: idx * 0.05 }}
+                whileHover={!disabled ? { scale: 1.03, y: -2 } : {}}
+                whileTap={!disabled ? { scale: 0.97 } : {}}
+                className={`relative rounded-2xl overflow-hidden border aspect-[4/3] text-left transition-all duration-300 ${
                   isBanned
-                    ? 'border-border bg-bg/40'
+                    ? 'border-border/50 opacity-30 grayscale'
                     : isMyTurn
-                    ? 'border-white/60 bg-card hover:bg-card2 cursor-pointer'
-                    : 'border-border bg-card'
+                    ? 'border-white/60 cursor-pointer hover:border-white'
+                    : 'border-border cursor-not-allowed'
                 }`}
               >
-                <div
-                  className={`text-sm font-bold ${
-                    isBanned ? 'text-muted line-through' : 'text-white'
-                  }`}
-                >
-                  {map.name}
-                </div>
-                <div className="text-muted text-[10px] mt-0.5 uppercase">
-                  {map.mode}
+                {/* Градиент-фон карты */}
+                <div className={`absolute inset-0 ${map.gradient}`} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+
+                {/* Содержимое */}
+                <div className="relative h-full flex flex-col justify-end p-3">
+                  <div className="text-white font-black text-base leading-none tracking-tight">
+                    {map.name}
+                  </div>
+                  <div className="text-white/60 text-[9px] uppercase tracking-widest mt-1">
+                    {map.mode}
+                  </div>
                 </div>
 
+                {/* Забанено */}
                 {isBanned && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-white/40 text-3xl font-bold">✕</div>
-                  </div>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                  >
+                    <div className="w-12 h-12 rounded-full border-2 border-white/40 flex items-center justify-center">
+                      <X className="w-6 h-6 text-white/80" strokeWidth={3} />
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Доступно для клика — пульсация */}
+                {isMyTurn && !isBanned && (
+                  <motion.div
+                    className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white"
+                    animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
+                    transition={{ duration: 1.2, repeat: Infinity }}
+                  />
                 )}
               </motion.button>
             );
@@ -218,31 +240,45 @@ export default function MapPicker({
         </AnimatePresence>
       </div>
 
-      {/* История пиков */}
+      {/* История */}
       {picks.length > 0 && (
-        <div className="bg-card border border-border rounded-2xl p-3">
-          <div className="text-muted text-xs uppercase tracking-wide mb-2">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-card border border-border rounded-2xl p-4"
+        >
+          <div className="text-muted text-[10px] uppercase tracking-[0.2em] mb-3">
             История
           </div>
-          <div className="space-y-1">
-            {picks.map((p) => {
+          <div className="space-y-2">
+            {picks.map((p, i) => {
               const mapObj = MAPS.find((m) => m.id === p.map_name);
-              const teamLabel =
-                p.team_id === team1Id ? 'Команда 1' : 'Команда 2';
+              const teamLabel = p.team_id === team1Id ? 'К1' : 'К2';
               return (
-                <div
+                <motion.div
                   key={p.id}
-                  className="text-xs text-muted flex justify-between"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="flex items-center justify-between text-xs"
                 >
-                  <span>
-                    {p.action === 'ban' ? '🚫' : '✓'} {mapObj?.name ?? p.map_name}
-                  </span>
-                  <span>{teamLabel}</span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-1 h-4 rounded-full ${mapObj?.gradient}`} />
+                    <span className="text-white font-semibold">{mapObj?.name ?? p.map_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted text-[10px]">{teamLabel}</span>
+                    {p.action === 'ban' ? (
+                      <X className="w-3 h-3 text-red-400" />
+                    ) : (
+                      <Check className="w-3 h-3 text-green-400" />
+                    )}
+                  </div>
+                </motion.div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   );
