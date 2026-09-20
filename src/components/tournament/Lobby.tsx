@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, LogOut, Check, Hourglass, Crown, X, Shield, Upload, Image as ImageIcon } from 'lucide-react';
+import { Users, LogOut, Check, Hourglass, Crown, X, Shield, AlertTriangle } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
-import TeamCard from './TeamCard';
 import type { BracketTeam } from '../../lib/bracket';
 
 type Props = {
@@ -13,36 +12,29 @@ type Props = {
   onReady: () => void;
 };
 
-type RawTeam = {
+type MyClan = {
   id: number;
-  player1_id: number;
-  player2_id: number | null;
-  player3_id: number | null;
-  player4_id: number | null;
-  player5_id: number | null;
-  side: 'left' | 'right' | null;
-  team_name: string | null;
+  name: string;
+  tag: string;
   logo_url: string | null;
+  members_count: number;
 };
 
-const MAX_PLAYERS = 5;
+const MIN_CLAN_MEMBERS = 5;
 
 export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) {
   const [teams, setTeams] = useState<BracketTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [teamName, setTeamName] = useState('');
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [myClan, setMyClan] = useState<MyClan | null>(null);
+  const [clanError, setClanError] = useState<string | null>(null);
 
+  // ====== Загрузка команд ======
   const loadTeams = async () => {
     const { data: rawTeams } = await supabase
       .from('teams')
-      .select('id, player1_id, player2_id, player3_id, player4_id, player5_id, side, team_name, logo_url')
+      .select('*')
       .eq('tournament_id', tournamentId)
       .order('created_at', { ascending: true });
 
@@ -52,50 +44,64 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       return;
     }
 
-    const userIds = new Set<number>();
-    (rawTeams as RawTeam[]).forEach((t) => {
-      [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].forEach((id) => {
-        if (id) userIds.add(id);
-      });
-    });
-
-    const { data: users } = await supabase
-      .from('users')
-      .select('user_id, nickname, first_name, photo_url, avatar_url, standoff_id')
-      .in('user_id', Array.from(userIds));
-
-    const userMap = new Map<number, any>();
-    (users ?? []).forEach((u) => userMap.set(u.user_id, u));
-
-    const enriched: BracketTeam[] = (rawTeams as RawTeam[]).map((t) => {
-      const ids = [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].filter(Boolean) as number[];
-      const players = ids.map((id) => {
-        const u = userMap.get(id);
-        return {
-          id,
-          name: u?.nickname || u?.first_name || 'Игрок',
-          photo: u?.avatar_url || u?.photo_url || null,
-          standoff_id: u?.standoff_id || null,
-        };
-      });
-      const captain = userMap.get(t.player1_id);
-      return {
-        id: t.id,
-        name: t.team_name || captain?.nickname || captain?.first_name || 'Команда',
-        captain_photo: captain?.avatar_url || captain?.photo_url || null,
-        logo_url: t.logo_url || null,
-        players,
-        side: t.side,
-      };
-    });
+    const enriched: BracketTeam[] = (rawTeams as any[]).map((t) => ({
+      id: t.id,
+      name: t.clan_name || t.team_name || 'Клан',
+      captain_photo: null,
+      logo_url: t.clan_logo_url || t.logo_url || null,
+      players: [],
+      side: t.side,
+    }));
 
     setTeams(enriched);
     if (enriched.length >= maxTeams) onReady();
     setLoading(false);
   };
 
+  // ====== Загрузка моего клана ======
+  const loadMyClan = async () => {
+    if (!user.clan_id) {
+      setMyClan(null);
+      setClanError('Ты не в клане. Вступи в клан или создай свой, чтобы участвовать.');
+      return;
+    }
+
+    const { data: clan } = await supabase
+      .from('clans')
+      .select('id, name, tag, logo_url')
+      .eq('id', user.clan_id)
+      .maybeSingle();
+
+    if (!clan) {
+      setMyClan(null);
+      setClanError('Клан не найден');
+      return;
+    }
+
+    const { count } = await supabase
+      .from('clan_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('clan_id', clan.id);
+
+    setMyClan({
+      id: clan.id,
+      name: clan.name,
+      tag: clan.tag,
+      logo_url: clan.logo_url,
+      members_count: count || 0,
+    });
+
+    if ((count || 0) < MIN_CLAN_MEMBERS) {
+      setClanError(`Нужно минимум ${MIN_CLAN_MEMBERS} игроков в клане (сейчас ${count || 0})`);
+    } else {
+      setClanError(null);
+    }
+  };
+
   useEffect(() => {
     loadTeams();
+    loadMyClan();
+
     const channel = supabase
       .channel(`lobby-${tournamentId}`)
       .on(
@@ -104,167 +110,99 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         () => loadTeams()
       )
       .subscribe();
+
     return () => { supabase.removeChannel(channel); };
-  }, [tournamentId]);
+  }, [tournamentId, user.clan_id]);
 
-  const myTeam = teams.find((t) => t.players.some((p) => p.id === user.user_id));
-  const isCaptain = myTeam?.players[0]?.id === user.user_id;
-  const myPlayersCount = myTeam?.players.length ?? 0;
+  // ====== Моя команда (по клану) ======
+  const myTeam = teams.find((t) => t.name === myClan?.name);
+  const alreadyJoined = !!myTeam;
+  const full = teams.length >= maxTeams;
 
-  const openCreateModal = () => {
-    if (!user.standoff_id) {
-      hapticError(); setMsg('Сначала добавь Standoff ID в профиле'); return;
-    }
-    if (myTeam) { hapticError(); setMsg('Ты уже в команде'); return; }
-    if (teams.length >= maxTeams) { hapticError(); setMsg('Все места заняты'); return; }
-
-    setTeamName(user.nickname || user.first_name || '');
-    setLogoFile(null);
-    setLogoPreview(null);
-    setShowCreateModal(true);
-  };
-
-  const pickLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
+  // ====== Вступить от клана ======
+  const joinWithClan = async () => {
+    if (!myClan) {
       hapticError();
-      setMsg('Логотип максимум 3MB');
+      setMsg('Сначала вступи в клан');
       return;
     }
-    setLogoFile(file);
-    setLogoPreview(URL.createObjectURL(file));
-  };
-
-  const uploadLogo = async (): Promise<string | null> => {
-    if (!logoFile) return null;
-    const ext = logoFile.name.split('.').pop() || 'png';
-    const path = `teams/${user.user_id}_${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from('standoff')
-      .upload(path, logoFile, { upsert: true, cacheControl: '3600' });
-
-    if (error) {
-      console.error('upload logo error:', error);
-      return null;
-    }
-
-    const { data } = supabase.storage.from('standoff').getPublicUrl(path);
-    return data.publicUrl + '?t=' + Date.now();
-  };
-
-  const createTeam = async () => {
-    if (!teamName.trim() || teamName.trim().length < 2) {
-      hapticError(); setMsg('Название минимум 2 символа'); return;
-    }
-    if (teamName.trim().length > 30) {
-      hapticError(); setMsg('Название максимум 30 символов'); return;
-    }
-
-    setJoining(true);
-    haptic('medium');
-
-    // 1. Загружаем логотип если есть
-    let logoUrl: string | null = null;
-    if (logoFile) {
-      setUploading(true);
-      logoUrl = await uploadLogo();
-      setUploading(false);
-      if (!logoUrl) {
-        hapticError();
-        setMsg('Ошибка загрузки логотипа');
-        setJoining(false);
-        return;
-      }
-    }
-
-    // 2. Создаём команду
-    const { error } = await supabase.from('teams').insert({
-      tournament_id: tournamentId,
-      player1_id: user.user_id,
-      captain_id: user.user_id,
-      team_name: teamName.trim(),
-      logo_url: logoUrl,
-      side: Math.random() < 0.5 ? 'left' : 'right',
-    });
-
-    if (error) {
+    if (clanError) {
       hapticError();
-      setMsg(error.message);
-    } else {
-      hapticSuccess();
-      setMsg(`Команда "${teamName.trim()}" создана!`);
-      setShowCreateModal(false);
+      setMsg(clanError);
+      return;
     }
-    setJoining(false);
-  };
-
-  const joinExistingTeam = async () => {
-    if (!user.standoff_id) { hapticError(); setMsg('Сначала добавь Standoff ID в профиле'); return; }
-    if (myTeam) { hapticError(); setMsg('Ты уже в команде'); return; }
-    if (teams.length >= maxTeams) { hapticError(); setMsg('Все места заняты'); return; }
+    if (alreadyJoined) {
+      hapticError();
+      setMsg('Твой клан уже участвует');
+      return;
+    }
+    if (full) {
+      hapticError();
+      setMsg('Все места заняты');
+      return;
+    }
 
     setJoining(true);
     haptic('medium');
 
-    const { data: rawTeams } = await supabase
-      .from('teams')
-      .select('*')
-      .eq('tournament_id', tournamentId);
+    try {
+      const { error } = await supabase.from('teams').insert({
+        tournament_id: tournamentId,
+        player1_id: user.user_id,
+        captain_id: user.user_id,
+        clan_id: myClan.id,
+        clan_name: myClan.name,
+        clan_tag: myClan.tag,
+        clan_logo_url: myClan.logo_url,
+        team_name: myClan.name,
+        logo_url: myClan.logo_url,
+        side: Math.random() < 0.5 ? 'left' : 'right',
+      });
 
-    const incomplete = (rawTeams || []).find((t: any) => {
-      const count = [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].filter(Boolean).length;
-      return count < MAX_PLAYERS;
-    });
-
-    if (incomplete) {
-      const t: any = incomplete;
-      const slot = !t.player2_id ? 'player2_id'
-        : !t.player3_id ? 'player3_id'
-        : !t.player4_id ? 'player4_id'
-        : 'player5_id';
-      const { error } = await supabase.from('teams').update({ [slot]: user.user_id }).eq('id', t.id);
-      if (error) { hapticError(); setMsg(error.message); }
-      else { hapticSuccess(); setMsg('Ты присоединился к команде'); }
-    } else {
-      setShowCreateModal(true);
+      if (error) {
+        hapticError();
+        setMsg(error.message);
+      } else {
+        hapticSuccess();
+        setMsg(`Клан "${myClan.name}" вступил в турнир!`);
+      }
+    } catch (e: any) {
+      hapticError();
+      setMsg(e.message || 'Ошибка');
     }
     setJoining(false);
   };
 
-  const leave = async () => {
+  // ====== Покинуть турнир (лидер) ======
+  const leaveTournament = async () => {
     if (!myTeam) return;
     haptic('medium');
 
-    const { data: rawTeams } = await supabase
-      .from('teams').select('*').eq('id', myTeam.id).maybeSingle();
+    const { data: teamData } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('id', myTeam.id)
+      .maybeSingle();
 
-    if (!rawTeams) return;
-    const t: any = rawTeams;
+    if (!teamData) return;
 
-    const isInSlot = (slot: string) => t[slot] === user.user_id;
-    const updates: any = {};
+    // Только лидер клана может выйти
+    const { data: member } = await supabase
+      .from('clan_members')
+      .select('role')
+      .eq('clan_id', (teamData as any).clan_id)
+      .eq('user_id', user.user_id)
+      .maybeSingle();
 
-    if (isCaptain && myPlayersCount === 1) {
-      await supabase.from('teams').delete().eq('id', myTeam.id);
-    } else if (isCaptain && myPlayersCount > 1) {
-      const next = t.player2_id || t.player3_id || t.player4_id || t.player5_id;
-      updates.player1_id = next;
-      updates.captain_id = next;
-      updates.player2_id = t.player2_id === next ? null : t.player2_id;
-      updates.player3_id = t.player3_id === next ? null : t.player3_id;
-      updates.player4_id = t.player4_id === next ? null : t.player4_id;
-      updates.player5_id = t.player5_id === next ? null : t.player5_id;
-      await supabase.from('teams').update(updates).eq('id', myTeam.id);
-    } else {
-      if (isInSlot('player2_id')) updates.player2_id = null;
-      if (isInSlot('player3_id')) updates.player3_id = null;
-      if (isInSlot('player4_id')) updates.player4_id = null;
-      if (isInSlot('player5_id')) updates.player5_id = null;
-      await supabase.from('teams').update(updates).eq('id', myTeam.id);
+    if (!member || member.role !== 'leader') {
+      hapticError();
+      setMsg('Только лидер клана может вывести его из турнира');
+      return;
     }
+
+    await supabase.from('teams').delete().eq('id', myTeam.id);
     hapticSuccess();
-    setMsg('Ты вышел из команды');
+    setMsg('Клан вышел из турнира');
   };
 
   if (loading) {
@@ -276,11 +214,9 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     );
   }
 
-  const hasIncompleteTeam = teams.some((t) => t.players.length < MAX_PLAYERS);
-
   return (
     <div className="space-y-4">
-      {/* Шапка лобби */}
+      {/* Шапка */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -297,9 +233,8 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
           </div>
         </div>
         <div className="relative text-white/90 text-xs font-medium">
-          Создай команду или присоединись к существующей
+          Кланы участвуют в турнире
         </div>
-
         <div className="relative mt-3 h-2 bg-white/20 rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
@@ -320,27 +255,20 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </motion.div>
       )}
 
-      {!myTeam ? (
-        <div className="space-y-2">
-          <button
-            onClick={openCreateModal}
-            disabled={joining || teams.length >= maxTeams}
-            className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors flex items-center justify-center gap-2"
-          >
-            <Shield className="w-4 h-4" />
-            {teams.length >= maxTeams ? 'Мест нет' : 'Создать команду'}
-          </button>
-
-          {hasIncompleteTeam && (
-            <button
-              onClick={joinExistingTeam}
-              disabled={joining}
-              className="w-full bg-white border-2 border-border text-black font-black rounded-2xl py-4 text-sm disabled:opacity-40 hover:border-orange transition-colors flex items-center justify-center gap-2"
-            >
-              <Users className="w-4 h-4" />
-              Присоединиться к команде
-            </button>
-          )}
+      {/* Мой клан */}
+      {!myClan ? (
+        <div className="bg-card border-2 border-orange/40 rounded-2xl p-5 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-orange/10 border border-orange/30 flex items-center justify-center mx-auto mb-3">
+            <AlertTriangle className="w-8 h-8 text-orange" />
+          </div>
+          <div className="text-black font-black text-base mb-1">Ты не в клане</div>
+          <p className="text-muted text-xs leading-relaxed mb-3">
+            Чтобы участвовать в турнире — вступи в клан или создай свой.
+            Минимум {MIN_CLAN_MEMBERS} игроков.
+          </p>
+          <div className="text-muted text-[10px]">
+            Перейди во вкладку «КЛАН» внизу
+          </div>
         </div>
       ) : (
         <motion.div
@@ -348,45 +276,96 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
           animate={{ opacity: 1, y: 0 }}
           className="bg-card border border-border rounded-2xl p-4 shadow-card"
         >
-          <div className="flex items-center gap-2 mb-2">
-            {isCaptain && (
-              <span className="role-admin">
-                <Crown className="w-3 h-3" />
-                Капитан
-              </span>
-            )}
-            <span className="text-black text-sm font-bold">{myTeam.name}</span>
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {myClan.logo_url ? (
+                <img src={myClan.logo_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white font-black text-lg">
+                  {myClan.tag.slice(0, 2)}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-black font-black text-base truncate">
+                {myClan.name}
+              </div>
+              <div className="text-orange font-bold text-xs">[{myClan.tag}]</div>
+              <div className="text-muted text-[10px] mt-0.5 flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                {myClan.members_count} / {MIN_CLAN_MEMBERS}+ игроков
+              </div>
+            </div>
           </div>
-          <div className="text-muted text-xs mb-3 flex items-center gap-1.5">
-            {myPlayersCount === MAX_PLAYERS ? (
-              <><Check className="w-3.5 h-3.5 text-success" /> Состав полный ({myPlayersCount}/{MAX_PLAYERS})</>
-            ) : (
-              <><Hourglass className="w-3.5 h-3.5 text-orange" /> Ждём ещё {MAX_PLAYERS - myPlayersCount} игроков</>
-            )}
-          </div>
-          <button
-            onClick={leave}
-            className="w-full bg-bg2 border border-border text-muted text-xs rounded-xl py-2.5 hover:border-orange/40 hover:text-orange transition-colors flex items-center justify-center gap-1.5 font-semibold"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Покинуть команду
-          </button>
+
+          {clanError && (
+            <div className="mt-3 bg-danger/10 border border-danger/30 rounded-xl p-2.5 text-xs text-danger font-semibold">
+              {clanError}
+            </div>
+          )}
         </motion.div>
       )}
 
+      {/* Кнопки действия */}
+      {myClan && (
+        <>
+          {!alreadyJoined ? (
+            <button
+              onClick={joinWithClan}
+              disabled={joining || full || !!clanError}
+              className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors flex items-center justify-center gap-2"
+            >
+              <Shield className="w-4 h-4" />
+              {full ? 'Мест нет' : joining ? 'Вступаем...' : 'Вступить от клана'}
+            </button>
+          ) : (
+            <div className="bg-card border border-success/40 rounded-2xl p-4 shadow-card">
+              <div className="flex items-center gap-2 mb-2">
+                <Check className="w-5 h-5 text-success" />
+                <span className="text-black font-bold text-sm">
+                  Клан в турнире
+                </span>
+              </div>
+              <button
+                onClick={leaveTournament}
+                className="w-full bg-bg2 border border-border text-danger text-xs rounded-xl py-2.5 hover:border-danger/40 transition-colors flex items-center justify-center gap-1.5 font-semibold"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Вывести клан из турнира
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Список кланов в турнире */}
       <div className="space-y-2">
         <div className="text-muted text-[10px] uppercase tracking-widest px-1 font-bold">
-          Команды ({teams.length})
+          Кланы в турнире ({teams.length})
         </div>
         <AnimatePresence>
-          {teams.map((t) => (
+          {teams.map((t, i) => (
             <motion.div
               key={t.id}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              transition={{ delay: i * 0.03 }}
+              className="bg-card border border-border rounded-2xl p-3 flex items-center gap-3 shadow-card"
             >
-              <TeamCard team={t} winner={myTeam?.id === t.id} />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0">
+                {t.logo_url ? (
+                  <img src={t.logo_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-white font-black text-xs">
+                    {t.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-black font-bold text-sm truncate">{t.name}</div>
+                <div className="text-muted text-[10px]">В турнире</div>
+              </div>
+              <Check className="w-4 h-4 text-success" />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -396,116 +375,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
           </div>
         )}
       </div>
-
-      {/* Модалка создания команды */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6"
-            onClick={() => !joining && setShowCreateModal(false)}
-          >
-            <motion.div
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto"
-            >
-              <div className="p-5 border-b border-border flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-orange/10 border border-orange/30 flex items-center justify-center">
-                    <Shield className="w-5 h-5 text-orange" strokeWidth={2} />
-                  </div>
-                  <div>
-                    <div className="text-black font-black text-base">Создать команду</div>
-                    <div className="text-muted text-[10px] uppercase tracking-widest font-bold">
-                      Заполни данные
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  disabled={joining}
-                  className="w-9 h-9 rounded-full bg-bg2 flex items-center justify-center disabled:opacity-40"
-                >
-                  <X className="w-4 h-4 text-black" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-4">
-                {/* Логотип */}
-                <div>
-                  <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-2">
-                    Логотип команды
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0 border-2 border-orange/30">
-                      {logoPreview ? (
-                        <img src={logoPreview} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <ImageIcon className="w-8 h-8 text-white/70" strokeWidth={1.5} />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <button
-                        onClick={() => fileRef.current?.click()}
-                        disabled={joining}
-                        className="w-full bg-bg2 border border-border text-black font-bold rounded-xl py-2.5 text-xs hover:border-orange transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        {logoPreview ? 'Сменить лого' : 'Загрузить лого'}
-                      </button>
-                      <div className="text-muted text-[10px] mt-1.5">
-                        PNG / JPG, до 3 МБ
-                      </div>
-                    </div>
-                  </div>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={pickLogo}
-                  />
-                </div>
-
-                {/* Название */}
-                <div>
-                  <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1.5">
-                    Название команды
-                  </label>
-                  <input
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value.slice(0, 30))}
-                    placeholder="Например: Virtus Pro"
-                    maxLength={30}
-                    disabled={joining}
-                    className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm focus:border-orange transition-colors disabled:opacity-50"
-                  />
-                  <div className="text-muted text-[10px] mt-1 text-right">
-                    {teamName.length} / 30
-                  </div>
-                </div>
-
-                <button
-                  onClick={createTeam}
-                  disabled={joining || uploading || !teamName.trim() || teamName.trim().length < 2}
-                  className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors"
-                >
-                  {uploading ? 'Загрузка лого...' : joining ? 'Создаём...' : 'Создать команду'}
-                </button>
-
-                <p className="text-muted text-[10px] text-center leading-relaxed">
-                  Ты станешь капитаном. Друзья смогут присоединиться к команде.
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

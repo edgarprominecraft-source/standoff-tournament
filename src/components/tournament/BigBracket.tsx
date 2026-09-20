@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Trophy, Swords, Users } from 'lucide-react';
+import { Trophy, Swords, Shield } from 'lucide-react';
 import type { BracketMatch } from '../../lib/bracket';
 import { roundName } from '../../lib/bracket';
 
@@ -31,6 +31,7 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
 
   return (
     <div className="bg-white rounded-3xl border border-border p-4 shadow-card overflow-x-auto">
+      {/* Заголовки раундов */}
       <div className="flex gap-3 mb-4 min-w-max">
         {rounds.map((round, rIdx) => (
           <div key={rIdx} className="flex-shrink-0" style={{ width: rIdx === 0 ? 200 : 180 }}>
@@ -54,13 +55,18 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
         </div>
       </div>
 
+      {/* Сетка */}
       <div className="flex gap-3 min-w-max items-stretch">
         {rounds.map((round, rIdx) => {
           const isFirstRound = rIdx === 0;
           const isLastRound = rIdx === rounds.length - 1;
 
           return (
-            <div key={rIdx} className="flex-shrink-0 flex flex-col justify-around" style={{ width: isFirstRound ? 200 : 180 }}>
+            <div
+              key={rIdx}
+              className="flex-shrink-0 flex flex-col justify-around"
+              style={{ width: isFirstRound ? 200 : 180 }}
+            >
               {round.map((match, mIdx) => {
                 const hasNext = !isLastRound;
 
@@ -112,6 +118,7 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
           );
         })}
 
+        {/* Чемпион */}
         <div className="flex-shrink-0 flex flex-col justify-center" style={{ width: 140 }}>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -119,13 +126,17 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
             className="bg-gradient-to-br from-orange to-orange2 rounded-2xl p-4 text-center shadow-orange"
           >
             <Trophy className="w-8 h-8 text-white mx-auto mb-1.5" strokeWidth={2} />
-            <div className="text-white font-black text-xs uppercase tracking-wider">Чемпион</div>
+            <div className="text-white font-black text-xs uppercase tracking-wider">
+              Чемпион
+            </div>
             {rounds[rounds.length - 1]?.[0]?.winner ? (
               <div className="text-white text-sm font-bold mt-2 truncate">
                 {rounds[rounds.length - 1][0].winner!.name || '—'}
               </div>
             ) : (
-              <div className="text-white/60 text-[10px] mt-2 font-semibold">Пока нет</div>
+              <div className="text-white/60 text-[10px] mt-2 font-semibold">
+                Пока нет
+              </div>
             )}
           </motion.div>
         </div>
@@ -134,6 +145,7 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
   );
 }
 
+// ===== Карточка матча =====
 function MatchCard({
   match,
   label,
@@ -160,6 +172,7 @@ function MatchCard({
         {label}
       </div>
 
+      {/* Клан 1 */}
       <TeamRow
         team={match.team1}
         isWinner={match.winner?.id === match.team1?.id && !!match.winner}
@@ -167,6 +180,7 @@ function MatchCard({
 
       <div className="h-px bg-border mx-1 my-1" />
 
+      {/* Клан 2 */}
       <TeamRow
         team={match.team2}
         isWinner={match.winner?.id === match.team2?.id && !!match.winner}
@@ -175,6 +189,7 @@ function MatchCard({
   );
 }
 
+// ===== Строка клана в матче =====
 function TeamRow({
   team,
   isWinner,
@@ -197,26 +212,25 @@ function TeamRow({
 
   return (
     <div className="flex items-center gap-1.5">
+      {/* Логотип клана */}
       <div className="w-6 h-6 rounded-md bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0">
         {team.logo_url ? (
           <img src={team.logo_url} alt="" className="w-full h-full object-cover" />
-        ) : team.captain_photo ? (
-          <img src={team.captain_photo} alt="" className="w-full h-full object-cover" />
         ) : (
-          <span className="text-[10px] text-white font-black">
-            {team.name?.charAt(0)?.toUpperCase() || '?'}
-          </span>
+          <Shield className="w-3 h-3 text-white" strokeWidth={2.5} />
         )}
       </div>
-      <div className={`text-[10px] font-bold truncate flex-1 ${
-        isWinner ? 'text-orange' : 'text-black'
-      }`}>
-        {team.name || 'Команда'}
+
+      {/* Название клана */}
+      <div
+        className={`text-[10px] font-bold truncate flex-1 ${
+          isWinner ? 'text-orange' : 'text-black'
+        }`}
+      >
+        {team.name || 'Клан'}
       </div>
-      <div className="text-[9px] text-muted font-bold flex items-center gap-0.5 flex-shrink-0">
-        <Users className="w-2.5 h-2.5" />
-        {team.players.length}
-      </div>
+
+      {/* Галочка победителя */}
       {isWinner && (
         <div className="w-3 h-3 rounded-full bg-orange flex items-center justify-center flex-shrink-0">
           <span className="text-white text-[7px] font-black">✓</span>
