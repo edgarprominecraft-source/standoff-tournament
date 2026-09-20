@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Building2, Trophy, ArrowLeft, Users, Coins } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Building2, Trophy, ArrowLeft, Users, Coins, Sparkles, ShieldCheck } from 'lucide-react';
 import {
   type Organizer,
   getAllOrganizers,
@@ -8,8 +8,12 @@ import {
 } from '../lib/organizers';
 import { type User, supabase } from '../supabase';
 import { buildBracket, type BracketMatch, type BracketTeam } from '../lib/bracket';
+import { haptic } from '../lib/telegram';
+import { getTelegramUser } from '../lib/telegram';
 import BigBracket from './tournament/BigBracket';
 import TeamInfoModal from './tournament/TeamInfoModal';
+import SponsorModal, { type Sponsor } from './tournament/SponsorModal';
+import Lobby from './tournament/Lobby';
 
 type Props = { user: User };
 
@@ -20,6 +24,7 @@ type Tournament = {
   prize_gold: number | null;
   status: string;
   created_at: string;
+  sponsor_channel: string | null;
 };
 
 export default function OrganizerPage({ user }: Props) {
@@ -28,6 +33,8 @@ export default function OrganizerPage({ user }: Props) {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
+  const [inLobby, setInLobby] = useState<Tournament | null>(null);
+  const [sponsorModal, setSponsorModal] = useState<{ tournament: Tournament; sponsors: Sponsor[] } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -43,15 +50,77 @@ export default function OrganizerPage({ user }: Props) {
     setTournaments(t as Tournament[]);
   };
 
+  const handleJoin = async (t: Tournament) => {
+    haptic('medium');
+
+    // Проверяем спонсоров турнира
+    const { data: ts } = await supabase
+      .from('tournament_sponsors')
+      .select('sponsor_id, sponsors(*)')
+      .eq('tournament_id', t.id);
+
+    const sponsors: Sponsor[] = (ts ?? []).map((r: any) => r.sponsors).filter(Boolean);
+
+    if (sponsors.length > 0) {
+      setSponsorModal({ tournament: t, sponsors });
+    } else {
+      setInLobby(t);
+    }
+  };
+
+  const handleSponsorsDone = () => {
+    if (!sponsorModal) return;
+    const t = sponsorModal.tournament;
+    setSponsorModal(null);
+    setInLobby(t);
+  };
+
+  // ===== Экран лобби (регистрация от клана) =====
+  if (inLobby) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setInLobby(null)}
+            className="p-2 rounded-xl bg-card border border-border hover:border-orange/40 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 text-black" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="text-black font-black text-sm truncate">{inLobby.name}</div>
+            <div className="text-muted text-[10px] uppercase tracking-widest font-bold">
+              Регистрация
+            </div>
+          </div>
+        </div>
+
+        <Lobby
+          tournamentId={inLobby.id}
+          maxTeams={inLobby.max_teams}
+          user={user}
+          onReady={() => {
+            // Когда набралось достаточно — показать сетку
+            setSelectedTournament(inLobby);
+            setInLobby(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ===== Экран сетки турнира =====
   if (selectedTournament) {
     return (
       <TournamentBracketView
         tournament={selectedTournament}
+        user={user}
         onBack={() => setSelectedTournament(null)}
+        onJoin={() => handleJoin(selectedTournament)}
       />
     );
   }
 
+  // ===== Экран организатора =====
   if (selected) {
     return (
       <div className="space-y-4">
@@ -116,13 +185,11 @@ export default function OrganizerPage({ user }: Props) {
             </div>
           ) : (
             tournaments.map((t) => (
-              <motion.button
+              <motion.div
                 key={t.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                onClick={() => setSelectedTournament(t)}
-                whileTap={{ scale: 0.98 }}
-                className="w-full bg-card border border-border rounded-2xl p-4 shadow-card text-left hover:border-orange/40 hover:shadow-cardHover transition-all"
+                className="bg-card border border-border rounded-2xl p-4 shadow-card"
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
@@ -146,10 +213,31 @@ export default function OrganizerPage({ user }: Props) {
                     {t.status === 'waiting' ? 'Набор' : t.status === 'active' ? 'Идёт' : 'Завершён'}
                   </div>
                 </div>
-                <div className="text-orange text-[11px] font-bold">
-                  Открыть сетку →
+
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setSelectedTournament(t)}
+                    className="flex-1 bg-bg2 border border-border text-black font-bold rounded-xl py-2.5 text-xs hover:border-orange/40 transition-colors"
+                  >
+                    Сетка
+                  </button>
+                  <button
+                    onClick={() => handleJoin(t)}
+                    disabled={t.status !== 'waiting'}
+                    className="flex-1 bg-orange text-white font-bold rounded-xl py-2.5 text-xs disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Участвовать
+                  </button>
                 </div>
-              </motion.button>
+
+                {t.status === 'waiting' && (
+                  <div className="flex items-center justify-center gap-1.5 mt-2 text-muted text-[10px] font-semibold">
+                    <ShieldCheck className="w-3 h-3" />
+                    Подписка на спонсора обязательна
+                  </div>
+                )}
+              </motion.div>
             ))
           )}
         </div>
@@ -166,6 +254,7 @@ export default function OrganizerPage({ user }: Props) {
     );
   }
 
+  // ===== Список организаторов =====
   return (
     <div className="space-y-4">
       <div className="bg-gradient-to-br from-orange to-orange2 rounded-3xl p-5 shadow-orange relative overflow-hidden">
@@ -220,17 +309,34 @@ export default function OrganizerPage({ user }: Props) {
           ))}
         </div>
       )}
+
+      {/* SponsorModal для подписки перед лобби */}
+      <AnimatePresence>
+        {sponsorModal && (
+          <SponsorModal
+            user={user}
+            telegramId={getTelegramUser()?.id ?? null}
+            sponsors={sponsorModal.sponsors}
+            onAllSubscribed={handleSponsorsDone}
+            onClose={() => setSponsorModal(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// ===== ЭКРАН СЕТКИ ТУРНИРА =====
+// ===== Экран сетки турнира =====
 function TournamentBracketView({
   tournament,
+  user,
   onBack,
+  onJoin,
 }: {
   tournament: Tournament;
+  user: User;
   onBack: () => void;
+  onJoin: () => void;
 }) {
   const [rounds, setRounds] = useState<BracketMatch[][]>([]);
   const [loading, setLoading] = useState(true);
@@ -257,45 +363,14 @@ function TournamentBracketView({
         return;
       }
 
-      const userIds = new Set<number>();
-      (rawTeams as any[]).forEach((t) => {
-        [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].forEach((id) => {
-          if (id) userIds.add(id);
-        });
-      });
-
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('user_id, nickname, first_name, photo_url, avatar_url, standoff_id, rank')
-        .in('user_id', Array.from(userIds));
-
-      const userMap = new Map<number, any>();
-      (usersData ?? []).forEach((u) => userMap.set(u.user_id, u));
-
-      const teams: BracketTeam[] = (rawTeams as any[]).map((t) => {
-        const ids = [t.player1_id, t.player2_id, t.player3_id, t.player4_id, t.player5_id].filter(Boolean) as number[];
-        const players = ids.map((id) => {
-          const u = userMap.get(id);
-          return {
-            id,
-            name: u?.nickname || u?.first_name || 'Игрок',
-            photo: u?.avatar_url || u?.photo_url || null,
-            standoff_id: u?.standoff_id || null,
-          };
-        });
-
-        const captain = userMap.get(t.player1_id);
-        const teamName = t.team_name || captain?.nickname || captain?.first_name || 'Команда';
-
-        return {
-          id: t.id,
-          name: teamName,
-          captain_photo: captain?.avatar_url || captain?.photo_url || null,
-          logo_url: t.logo_url || null,
-          players,
-          side: t.side,
-        };
-      });
+      const teams: BracketTeam[] = (rawTeams as any[]).map((t) => ({
+        id: t.id,
+        name: t.clan_name || t.team_name || 'Клан',
+        captain_photo: null,
+        logo_url: t.clan_logo_url || t.logo_url || null,
+        players: [],
+        side: t.side,
+      }));
 
       const built = buildBracket(teams);
       const matches = rawMatches || [];
@@ -353,9 +428,18 @@ function TournamentBracketView({
         <div className="bg-card border border-border rounded-3xl p-8 text-center">
           <Trophy className="w-12 h-12 text-muted mx-auto mb-3" strokeWidth={1.5} />
           <div className="text-black font-bold mb-2">Сетка ещё не создана</div>
-          <p className="text-muted text-xs leading-relaxed">
-            Матчи появятся когда наберётся нужное количество команд
+          <p className="text-muted text-xs leading-relaxed mb-4">
+            Матчи появятся когда наберётся нужное количество кланов
           </p>
+          {tournament.status === 'waiting' && (
+            <button
+              onClick={onJoin}
+              className="bg-orange text-white font-black rounded-2xl px-6 py-3 text-sm shadow-orange hover:bg-orangeDark transition-colors inline-flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              Участвовать
+            </button>
+          )}
         </div>
       ) : (
         <BigBracket
