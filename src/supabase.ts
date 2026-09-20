@@ -32,6 +32,15 @@ export type User = {
   banned: boolean | null;
   ban_reason: string | null;
   favorite_map: string | null;
+  // ===== Новые поля =====
+  rank: string | null;
+  rank_stars: number | null;
+  custom_badge: string | null;
+  custom_badge_approved: boolean | null;
+  hide_profile: boolean | null;
+  theme: string | null;
+  tokens: number | null;
+  last_token_refill: string | null;
   created_at?: string;
 };
 
@@ -42,6 +51,11 @@ export type Tournament = {
   max_teams: number;
   status: 'waiting' | 'active' | 'finished';
   created_at: string;
+  organizer_id: number | null;
+  prize_gold: number | null;
+  rules: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
 };
 
 export type Team = {

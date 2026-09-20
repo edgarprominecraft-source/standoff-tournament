@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Users, ArrowLeft, Lock, Swords, Sparkles, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Trophy, Users, ArrowLeft, Lock, Swords, Sparkles, ChevronRight, ShieldCheck, Coins, Building2 } from 'lucide-react';
 import { supabase, type User, type Tournament as TTournament } from '../supabase';
 import { haptic, hapticError } from '../lib/telegram';
 import { buildBracket, type BracketMatch, type BracketTeam } from '../lib/bracket';
 import { getTelegramUser } from '../lib/telegram';
 import Lobby from './tournament/Lobby';
-import Bracket from './tournament/Bracket';
+import BigBracket from './tournament/BigBracket';
 import MatchRoom from './tournament/MatchRoom';
 import SponsorModal, { type Sponsor } from './tournament/SponsorModal';
 
@@ -33,6 +33,13 @@ type RawMatch = {
   winner_id: number | null;
 };
 
+type Organizer = {
+  id: number;
+  name: string;
+  tag: string | null;
+  logo_url: string | null;
+};
+
 type ViewState =
   | { type: 'list' }
   | { type: 'lobby'; tournament: TTournament }
@@ -49,6 +56,7 @@ type ViewState =
 
 export default function Tournament({ user }: Props) {
   const [tournaments, setTournaments] = useState<TTournament[]>([]);
+  const [organizers, setOrganizers] = useState<Record<number, Organizer>>({});
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [view, setView] = useState<ViewState>({ type: 'list' });
@@ -60,6 +68,19 @@ export default function Tournament({ user }: Props) {
       .select('*')
       .order('created_at', { ascending: false });
     if (data) setTournaments(data as TTournament[]);
+
+    // Подгружаем организаторов
+    const orgIds = Array.from(new Set((data || []).map((t: any) => t.organizer_id).filter(Boolean)));
+    if (orgIds.length > 0) {
+      const { data: orgs } = await supabase
+        .from('organizers')
+        .select('*')
+        .in('id', orgIds);
+      const map: Record<number, Organizer> = {};
+      (orgs || []).forEach((o: any) => { map[o.id] = o; });
+      setOrganizers(map);
+    }
+
     setLoading(false);
   };
 
@@ -175,7 +196,12 @@ export default function Tournament({ user }: Props) {
           </div>
         ) : (
           tournaments.map((t) => (
-            <TournamentCard key={t.id} tournament={t} onJoin={() => handleOpenTournament(t)} />
+            <TournamentCard
+              key={t.id}
+              tournament={t}
+              organizer={t.organizer_id ? organizers[t.organizer_id] : null}
+              onJoin={() => handleOpenTournament(t)}
+            />
           ))
         )}
       </div>
@@ -193,7 +219,16 @@ export default function Tournament({ user }: Props) {
   );
 }
 
-function TournamentCard({ tournament, onJoin }: { tournament: TTournament; onJoin: () => void }) {
+// ===== КАРТОЧКА ТУРНИРА =====
+function TournamentCard({
+  tournament,
+  organizer,
+  onJoin,
+}: {
+  tournament: TTournament;
+  organizer: Organizer | null;
+  onJoin: () => void;
+}) {
   const [teamCount, setTeamCount] = useState(0);
   const [preview, setPreview] = useState<BracketTeam[]>([]);
 
@@ -275,7 +310,7 @@ function TournamentCard({ tournament, onJoin }: { tournament: TTournament; onJoi
         <div className="absolute -right-10 -bottom-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
 
         <div className="relative p-5">
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-xl bg-white/25 backdrop-blur border border-white/40 flex items-center justify-center">
                 <Trophy className="w-4 h-4 text-white" strokeWidth={2.5} />
@@ -297,9 +332,36 @@ function TournamentCard({ tournament, onJoin }: { tournament: TTournament; onJoi
           <div className="text-white font-black text-2xl leading-tight tracking-tight drop-shadow-sm mb-1">
             {tournament.name}
           </div>
-          <div className="text-white/90 text-xs font-bold">
-            Формат 5×5 · Bo1 · до {tournament.max_teams} команд
+          <div className="text-white/90 text-xs font-bold mb-2">
+            Формат 5×5 · Single Elim · до {tournament.max_teams} команд
           </div>
+
+          {/* Призовой фонд */}
+          {tournament.prize_gold && tournament.prize_gold > 0 && (
+            <div className="inline-flex items-center gap-1.5 bg-white/25 backdrop-blur border border-white/40 rounded-full px-3 py-1 mt-2">
+              <Coins className="w-3.5 h-3.5 text-white" />
+              <span className="text-white font-black text-sm">
+                {tournament.prize_gold} G
+              </span>
+            </div>
+          )}
+
+          {/* Организатор */}
+          {organizer && (
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/20">
+              <div className="w-6 h-6 rounded-lg bg-white/25 backdrop-blur border border-white/40 flex items-center justify-center overflow-hidden">
+                {organizer.logo_url ? (
+                  <img src={organizer.logo_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Building2 className="w-3 h-3 text-white" />
+                )}
+              </div>
+              <span className="text-white/90 text-[11px] font-bold">
+                {organizer.name}
+                {organizer.tag && ` [${organizer.tag}]`}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -343,7 +405,7 @@ function TournamentCard({ tournament, onJoin }: { tournament: TTournament; onJoi
                         {first.name}
                       </div>
                       <div className="text-muted text-[9px] font-bold">
-                        {team.players.length}/5 игроков
+                        {team.players.length}/5
                       </div>
                     </div>
                   </>
@@ -428,6 +490,7 @@ function TournamentCard({ tournament, onJoin }: { tournament: TTournament; onJoi
   );
 }
 
+// ===== ЭКРАН СЕТКИ =====
 function BracketView({
   tournament,
   user,
@@ -542,7 +605,7 @@ function BracketView({
           <div className="text-muted text-xs uppercase tracking-widest">Загрузка сетки</div>
         </div>
       ) : (
-        <Bracket rounds={rounds} onMatchClick={onOpenMatch} />
+        <BigBracket rounds={rounds} onMatchClick={onOpenMatch} />
       )}
     </div>
   );

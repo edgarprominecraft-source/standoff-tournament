@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User as UserIcon, Trophy, BarChart3, Info as InfoIcon, Users } from 'lucide-react';
+import { User as UserIcon, Trophy, BarChart3, Info as InfoIcon, Users, Building2 } from 'lucide-react';
 import { supabase, type User } from './supabase';
 import { initTelegram, getTelegramUser, haptic } from './lib/telegram';
 import Profile from './components/Profile';
@@ -8,13 +8,15 @@ import Tournament from './components/Tournament';
 import Clan from './components/Clan';
 import Rating from './components/Rating';
 import Info from './components/Info';
+import OrganizerPage from './components/OrganizerPage';
 
-type Tab = 'profile' | 'tournament' | 'clan' | 'rating' | 'info';
+type Tab = 'profile' | 'tournament' | 'clan' | 'organizers' | 'rating' | 'info';
 
 const TABS: { id: Tab; label: string; Icon: any }[] = [
   { id: 'profile', label: 'Аккаунт', Icon: UserIcon },
   { id: 'tournament', label: 'Турнир', Icon: Trophy },
   { id: 'clan', label: 'Клан', Icon: Users },
+  { id: 'organizers', label: 'Орг', Icon: Building2 },
   { id: 'rating', label: 'Рейтинг', Icon: BarChart3 },
   { id: 'info', label: 'Инфо', Icon: InfoIcon },
 ];
@@ -58,6 +60,7 @@ export default function App() {
             first_name: tgUser.first_name ?? null,
             photo_url: tgUser.photo_url ?? null,
             balance: 0,
+            tokens: 10,
             trust_score: 100,
           })
           .select().single();
@@ -88,6 +91,7 @@ export default function App() {
         standoff_id: standoffId.trim(),
         first_name: nickname.trim(),
         balance: 0,
+        tokens: 10,
         trust_score: 100,
         last_nick_change: new Date().toISOString(),
       })
@@ -139,7 +143,6 @@ export default function App() {
                 placeholder="Например: 12345678"
                 className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm focus:border-orange transition-colors"
               />
-              <p className="text-muted text-[10px] mt-1.5">Найди в Standoff 2 → Профиль → ID</p>
             </div>
             {error && (
               <div className="bg-danger/10 border border-danger/40 rounded-xl p-3 text-xs text-danger">{error}</div>
@@ -152,7 +155,6 @@ export default function App() {
               {registering ? 'Создаём...' : 'Войти'}
             </button>
           </div>
-          <p className="text-muted text-[10px] text-center mt-4">ID хранится только в этом браузере</p>
         </motion.div>
       </div>
     );
@@ -192,6 +194,7 @@ export default function App() {
             {tab === 'profile' && <Profile user={user} setUser={setUser} />}
             {tab === 'tournament' && <Tournament user={user} />}
             {tab === 'clan' && <Clan user={user} />}
+            {tab === 'organizers' && <OrganizerPage user={user} />}
             {tab === 'rating' && <Rating />}
             {tab === 'info' && <Info />}
           </motion.div>
@@ -199,7 +202,7 @@ export default function App() {
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border z-20 shadow-[0_-2px_12px_rgba(0,0,0,0.04)]">
-        <div className="grid grid-cols-5 max-w-lg mx-auto">
+        <div className="grid grid-cols-6 max-w-lg mx-auto">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -209,11 +212,11 @@ export default function App() {
               }`}
             >
               <t.Icon className="w-5 h-5" strokeWidth={tab === t.id ? 2.5 : 2} />
-              <span className="text-[9px] uppercase tracking-wide font-semibold">{t.label}</span>
+              <span className="text-[8px] uppercase tracking-wide font-semibold">{t.label}</span>
               {tab === t.id && (
                 <motion.div
                   layoutId="tabIndicator"
-                  className="absolute top-0 h-[3px] w-10 bg-orange rounded-full"
+                  className="absolute top-0 h-[3px] w-8 bg-orange rounded-full"
                 />
               )}
             </button>
