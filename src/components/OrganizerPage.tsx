@@ -275,7 +275,7 @@ export default function OrganizerPage({ user }: Props) {
         <div className="bg-card border border-border rounded-2xl p-8 text-center shadow-card">
           <Building2 className="w-12 h-12 text-muted mx-auto mb-3" strokeWidth={1.5} />
           <div className="text-black font-bold mb-1">Организаторов пока нет</div>
-          <p className="text-muted text-xs">Создай в админ-панели на сайте</p>
+          <p className="text-muted text-xs">Скоро появятся</p>
         </div>
       ) : (
         <div className="space-y-2">
