@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Coins, User as UserIcon, Camera, Check, X,
@@ -177,7 +177,7 @@ export default function Profile({ user, setUser }: Props) {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.3),transparent_65%)]" />
         </div>
 
-        <div className="px-5 pb-5 -mt-12">
+        <div className="px-5 pb-5" style={{ marginTop: -48 }}>
           <div className="flex items-end justify-between mb-3">
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center">
@@ -357,7 +357,7 @@ export default function Profile({ user, setUser }: Props) {
                       Загрузить фото
                     </button>
                     <div className="text-muted text-[10px] mt-1.5 text-center">
-                      user.has_premium ? 'Бесплатно · 5 МБ' : '{BANNER_PRICE} 💰 · 5 МБ'
+                      user.has_premium ? 'Бесплатно · 5 МБ' : `${BANNER_PRICE} 💰 · 5 МБ`
                     </div>
                   </div>
                 </div>
