@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Coins, Palette, User as UserIcon, AlertTriangle, Camera, Check, X,
+  Coins, User as UserIcon, Camera, Check, X,
   Crown, Shield, Headphones, Users as UsersIcon, Settings as SettingsIcon,
-  Target, Zap, Heart, Swords, ChevronRight, Trophy, Clock,
+  Swords, ChevronRight, Palette, Lock,
 } from 'lucide-react';
 import { supabase, type User } from '../supabase';
 import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
-import {
-  NICK_COLORS, AVATAR_FRAMES, PROFILE_BANNERS,
-  updateProfile, uploadAvatar,
-} from '../lib/profile';
+import { PROFILE_BANNERS, updateProfile, uploadAvatar } from '../lib/profile';
 import RankBadge from './RankBadge';
 
 type Props = {
@@ -23,7 +20,7 @@ export default function Profile({ user, setUser }: Props) {
   const [standoffId, setStandoffId] = useState(user.standoff_id ?? '');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [showCustomize, setShowCustomize] = useState(false);
+  const [showBanners, setShowBanners] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showEditNick, setShowEditNick] = useState(false);
   const [showFullProfile, setShowFullProfile] = useState(false);
@@ -77,7 +74,7 @@ export default function Profile({ user, setUser }: Props) {
 
   const saveNickname = async () => {
     if (!nickname.trim() || nickname.length < 3) { hapticError(); setMsg('Ник минимум 3 символа'); return; }
-    if (!canChangeNick()) { hapticError(); setMsg('Ник можно менять раз в 24 часа'); return; }
+    if (!canChangeNick()) { hapticError(); setMsg('Ник раз в 24 часа'); return; }
     setSaving(true);
     const { data, error } = await updateProfile(user.user_id, {
       nickname: nickname.trim(),
@@ -89,7 +86,7 @@ export default function Profile({ user, setUser }: Props) {
   };
 
   const saveStandoffId = async () => {
-    if (!standoffId.trim() || standoffId.length < 5) { hapticError(); setMsg('Введи корректный Standoff ID'); return; }
+    if (!standoffId.trim() || standoffId.length < 5) { hapticError(); setMsg('Корректный Standoff ID'); return; }
     setSaving(true);
     const { data, error } = await updateProfile(user.user_id, { standoff_id: standoffId.trim() });
     setSaving(false);
@@ -111,25 +108,17 @@ export default function Profile({ user, setUser }: Props) {
     else { hapticSuccess(); setUser(data as User); setMsg('Аватар обновлён'); }
   };
 
-  const pickColor = async (color: string) => {
-    haptic('light');
-    const { data } = await updateProfile(user.user_id, { nickname_color: color });
-    if (data) { hapticSuccess(); setUser(data as User); }
-  };
-
-  const pickFrame = async (frameId: string) => {
-    haptic('light');
-    const { data } = await updateProfile(user.user_id, { avatar_frame: frameId });
-    if (data) { hapticSuccess(); setUser(data as User); }
-  };
-
   const pickBanner = async (bannerId: string) => {
+    if (!user.has_premium) {
+      hapticError();
+      setMsg('Только для Premium. Оформи подписку у @HePastic');
+      return;
+    }
     haptic('light');
     const { data } = await updateProfile(user.user_id, { banner_url: bannerId });
-    if (data) { hapticSuccess(); setUser(data as User); }
+    if (data) { hapticSuccess(); setUser(data as User); setMsg('Фон обновлён'); setShowBanners(false); }
   };
 
-  const currentFrame = AVATAR_FRAMES.find((f) => f.id === (user.avatar_frame || 'none'));
   const currentBanner = PROFILE_BANNERS.find((b) => b.id === (user.banner_url || 'none'));
   const nickColor = user.nickname_color || '#0A0A0A';
 
@@ -142,7 +131,6 @@ export default function Profile({ user, setUser }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Шапка */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -155,7 +143,7 @@ export default function Profile({ user, setUser }: Props) {
         <div className="px-5 pb-5 -mt-12">
           <div className="flex items-end justify-between mb-3">
             <div className="relative">
-              <div className={`w-24 h-24 rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center ${currentFrame?.style || ''}`}>
+              <div className="w-24 h-24 rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center">
                 {user.avatar_url || user.photo_url ? (
                   <img src={user.avatar_url || user.photo_url || ''} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -173,10 +161,17 @@ export default function Profile({ user, setUser }: Props) {
             </div>
             <div className="flex gap-1.5">
               <button
-                onClick={() => { haptic('light'); setShowCustomize(true); }}
-                className="w-9 h-9 rounded-xl bg-orange/10 border border-orange/30 flex items-center justify-center text-orange hover:bg-orange/20 transition-colors"
+                onClick={() => { haptic('light'); setShowBanners(true); }}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors relative ${
+                  user.has_premium
+                    ? 'bg-orange/10 border border-orange/30 text-orange hover:bg-orange/20'
+                    : 'bg-bg2 border border-border text-muted hover:border-orange/30'
+                }`}
               >
                 <Palette className="w-4 h-4" />
+                {!user.has_premium && (
+                  <Lock className="w-2.5 h-2.5 absolute -top-1 -right-1 bg-white rounded-full p-0.5 text-muted" />
+                )}
               </button>
               <button
                 onClick={() => { haptic('light'); setShowSettings(true); }}
@@ -214,7 +209,7 @@ export default function Profile({ user, setUser }: Props) {
         </div>
       </motion.div>
 
-      {/* Чистая статистика — минималистичная */}
+      {/* Статистика */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -222,14 +217,9 @@ export default function Profile({ user, setUser }: Props) {
         className="bg-card border border-border rounded-3xl shadow-card overflow-hidden"
       >
         <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-          <div className="text-black font-black text-sm uppercase tracking-wide">
-            Статистика
-          </div>
-          <div className="text-muted text-[11px] font-semibold">
-            {stats.matches} матчей
-          </div>
+          <div className="text-black font-black text-sm uppercase tracking-wide">Статистика</div>
+          <div className="text-muted text-[11px] font-semibold">{stats.matches} матчей</div>
         </div>
-
         <div className="grid grid-cols-4 divide-x divide-border">
           <StatCell label="К/Д" value={kd.toFixed(2)} />
           <StatCell label="Винрейт" value={`${winrate}%`} />
@@ -250,7 +240,6 @@ export default function Profile({ user, setUser }: Props) {
         <QuickBlock icon={Coins} label="Жетоны" value={user.tokens || 0} />
       </motion.div>
 
-      {/* Подробный профиль */}
       <motion.button
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -273,7 +262,7 @@ export default function Profile({ user, setUser }: Props) {
         </motion.div>
       )}
 
-      {/* Модалка подробного профиля */}
+      {/* Подробный профиль */}
       <AnimatePresence>
         {showFullProfile && (
           <FullProfileModal
@@ -286,18 +275,32 @@ export default function Profile({ user, setUser }: Props) {
         )}
       </AnimatePresence>
 
-      {/* Модалка кастомизации */}
+      {/* Фоны */}
       <AnimatePresence>
-        {showCustomize && (
-          <Modal onClose={() => setShowCustomize(false)} title="Кастомизация">
-            <div className="p-5 border-b border-border">
-              <div className="text-black font-bold mb-3 text-sm">Фон профиля</div>
+        {showBanners && (
+          <Modal
+            onClose={() => setShowBanners(false)}
+            title={user.has_premium ? 'Фон профиля' : 'Фон профиля — Premium'}
+          >
+            {!user.has_premium && (
+              <div className="p-5 border-b border-border">
+                <div className="bg-orange/10 border border-orange/30 rounded-xl p-4 text-center">
+                  <Lock className="w-6 h-6 text-orange mx-auto mb-2" />
+                  <div className="text-black font-bold text-sm mb-1">Только с Premium</div>
+                  <p className="text-muted text-xs leading-relaxed">
+                    Смена фона доступна только с подпиской. Оформи у @HePastic
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="p-5">
               <div className="grid grid-cols-3 gap-2">
                 {PROFILE_BANNERS.map((b) => (
                   <button
                     key={b.id}
                     onClick={() => pickBanner(b.id)}
-                    className={`relative rounded-xl h-16 ${b.css} border-2 transition-all ${
+                    disabled={!user.has_premium}
+                    className={`relative rounded-xl h-16 ${b.css} border-2 transition-all disabled:opacity-40 ${
                       (user.banner_url || 'none') === b.id ? 'border-orange' : 'border-transparent'
                     }`}
                   >
@@ -310,49 +313,11 @@ export default function Profile({ user, setUser }: Props) {
                 ))}
               </div>
             </div>
-            <div className="p-5 border-b border-border">
-              <div className="text-black font-bold mb-3 text-sm">Цвет ника</div>
-              <div className="grid grid-cols-5 gap-2">
-                {NICK_COLORS.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => pickColor(c.value)}
-                    className={`relative h-12 rounded-xl border-2 transition-all ${
-                      nickColor === c.value ? 'border-orange' : 'border-border'
-                    }`}
-                    style={{ background: c.value === 'rainbow' ? 'linear-gradient(90deg,#ff0000,#ffa500,#ffff00,#00ff00,#0000ff,#8b00ff)' : c.value }}
-                  >
-                    {nickColor === c.value && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Check className="w-5 h-5 text-white drop-shadow-md" strokeWidth={3} />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="p-5">
-              <div className="text-black font-bold mb-3 text-sm">Рамка аватара</div>
-              <div className="grid grid-cols-3 gap-2">
-                {AVATAR_FRAMES.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => pickFrame(f.id)}
-                    className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all ${
-                      (user.avatar_frame || 'none') === f.id ? 'border-orange bg-orange/5' : 'border-border'
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-full bg-bg2 ${f.style}`} />
-                    <span className="text-[10px] font-bold text-black">{f.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </Modal>
         )}
       </AnimatePresence>
 
-      {/* Модалка настроек — БЕЗ скрыть профиль */}
+      {/* Настройки */}
       <AnimatePresence>
         {showSettings && (
           <Modal onClose={() => setShowSettings(false)} title="Настройки">
@@ -382,20 +347,11 @@ export default function Profile({ user, setUser }: Props) {
                 <div className="text-black font-bold text-sm">Изменить ник</div>
                 <span className="text-muted text-xs">{canChangeNick() ? 'Доступно' : '24ч'}</span>
               </button>
-
-              <button
-                onClick={() => { setShowSettings(false); setShowCustomize(true); }}
-                className="w-full bg-bg2 border border-border rounded-xl p-4 flex items-center justify-between"
-              >
-                <div className="text-black font-bold text-sm">Кастомизация</div>
-                <span className="text-muted text-xs">Открыть</span>
-              </button>
             </div>
           </Modal>
         )}
       </AnimatePresence>
 
-      {/* Модалка ника */}
       <AnimatePresence>
         {showEditNick && (
           <Modal onClose={() => setShowEditNick(false)} title="Изменить ник">
@@ -422,10 +378,7 @@ export default function Profile({ user, setUser }: Props) {
   );
 }
 
-// ===== Подробный профиль =====
-function FullProfileModal({
-  user, stats, friendsCount, clanName, onClose,
-}: any) {
+function FullProfileModal({ user, stats, friendsCount, clanName, onClose }: any) {
   const kd = stats.deaths > 0 ? (stats.kills / stats.deaths) : stats.kills;
   const winrate = stats.matches > 0 ? Math.round((stats.wins / stats.matches) * 100) : 0;
 
@@ -444,12 +397,10 @@ function FullProfileModal({
       </div>
 
       <div className="p-4 space-y-4 max-w-2xl mx-auto">
-        {/* Характеристики */}
         <div className="bg-card border border-border rounded-3xl p-5">
           <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-4">
             Характеристики игрока
           </div>
-
           <div className="space-y-4">
             <CharacterBar label="Точность" value={Math.min(100, kd * 30)} color="#FF6B00" />
             <CharacterBar label="Агрессия" value={Math.min(100, (stats.kills / Math.max(1, stats.matches)) * 10)} color="#EF4444" />
@@ -458,47 +409,30 @@ function FullProfileModal({
           </div>
         </div>
 
-        {/* Общая инфа */}
         <div className="bg-card border border-border rounded-3xl p-5 space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">Ник</span>
-            <span className="text-black font-bold">{user.nickname || user.first_name || 'Игрок'}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">Standoff ID</span>
-            <span className="text-black font-bold">{user.standoff_id || '—'}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">Клан</span>
-            <span className="text-black font-bold">{clanName || 'Не в клане'}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">Друзья</span>
-            <span className="text-black font-bold">{friendsCount}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">Баланс</span>
-            <span className="text-black font-bold">{user.balance || 0} 💰</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">Жетоны</span>
-            <span className="text-black font-bold">{user.tokens || 0} 🪙</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">Матчей</span>
-            <span className="text-black font-bold">{stats.matches}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">К/Д</span>
-            <span className="text-black font-bold">{kd.toFixed(2)}</span>
-          </div>
+          <Row label="Ник" value={user.nickname || user.first_name || 'Игрок'} />
+          <Row label="Standoff ID" value={user.standoff_id || '—'} />
+          <Row label="Клан" value={clanName || 'Не в клане'} />
+          <Row label="Друзья" value={friendsCount} />
+          <Row label="Баланс" value={`${user.balance || 0} 💰`} />
+          <Row label="Жетоны" value={`${user.tokens || 0} 🪙`} />
+          <Row label="Матчей" value={stats.matches} />
+          <Row label="К/Д" value={kd.toFixed(2)} />
         </div>
       </div>
     </motion.div>
   );
 }
 
-// ===== Утилиты =====
+function Row({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="flex justify-between text-sm">
+      <span className="text-muted">{label}</span>
+      <span className="text-black font-bold">{value}</span>
+    </div>
+  );
+}
+
 function Modal({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (
     <motion.div
@@ -531,9 +465,7 @@ function StatCell({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="py-4 text-center">
       <div className="text-black font-black text-lg">{value}</div>
-      <div className="text-muted text-[9px] uppercase tracking-widest font-bold mt-0.5">
-        {label}
-      </div>
+      <div className="text-muted text-[9px] uppercase tracking-widest font-bold mt-0.5">{label}</div>
     </div>
   );
 }
@@ -543,13 +475,9 @@ function QuickBlock({ icon: Icon, label, value, small }: any) {
     <div className="bg-card border border-border rounded-2xl p-3 shadow-card">
       <div className="flex items-center gap-1.5 mb-1">
         <Icon className="w-3.5 h-3.5 text-orange" />
-        <div className="text-muted text-[9px] uppercase tracking-wider font-bold">
-          {label}
-        </div>
+        <div className="text-muted text-[9px] uppercase tracking-wider font-bold">{label}</div>
       </div>
-      <div className={`text-black font-black ${small ? 'text-xs' : 'text-base'} truncate`}>
-        {value}
-      </div>
+      <div className={`text-black font-black ${small ? 'text-xs' : 'text-base'} truncate`}>{value}</div>
     </div>
   );
 }

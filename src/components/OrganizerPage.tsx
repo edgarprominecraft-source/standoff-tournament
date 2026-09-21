@@ -366,7 +366,10 @@ function TournamentBracketView({
         setMyTeamId(mine?.id || null);
       }
 
-      const teams: BracketTeam[] = (rawTeams as any[]).map((t) => ({
+      // Сортируем команды по id — стабильный порядок
+      const sortedTeams = [...(rawTeams as any[])].sort((a, b) => a.id - b.id);
+
+      const teams: BracketTeam[] = sortedTeams.map((t) => ({
         id: t.id,
         name: t.clan_name || t.team_name || 'Клан',
         captain_photo: null,
@@ -375,8 +378,9 @@ function TournamentBracketView({
         side: t.side,
       }));
 
-      const built = buildBracket(teams);
       const matches = rawMatches || [];
+      // Если матчи уже созданы — не перемешивать
+      const built = buildBracket(teams, matches.length === 0);
 
       matches.forEach((m: any) => {
         for (const round of built) {

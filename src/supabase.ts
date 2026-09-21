@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -41,6 +41,7 @@ export type User = {
   theme: string | null;
   tokens: number | null;
   last_token_refill: string | null;
+  has_premium: boolean | null;
   created_at?: string;
 };
 

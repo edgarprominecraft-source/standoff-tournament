@@ -1,8 +1,6 @@
-// Сетка для Single Elimination (5х5)
-
 export type BracketTeam = {
   id: number;
-  name: string;           // Название команды (или ник капитана)
+  name: string;
   captain_photo: string | null;
   logo_url: string | null;
   players: {
@@ -23,13 +21,21 @@ export type BracketMatch = {
   matchId?: number;
 };
 
-export function buildBracket(teams: BracketTeam[]): BracketMatch[][] {
+/**
+ * Строит сетку.
+ * @param teams — команды
+ * @param shuffle — перемешивать ли (false если матчи уже в БД, чтобы порядок сохранялся)
+ */
+export function buildBracket(teams: BracketTeam[], shuffle: boolean = true): BracketMatch[][] {
   if (teams.length === 0) return [];
 
   const size = Math.max(2, Math.pow(2, Math.ceil(Math.log2(teams.length))));
-  const shuffled = [...teams].sort(() => Math.random() - 0.5);
 
-  const padded: (BracketTeam | null)[] = [...shuffled];
+  const ordered = shuffle
+    ? [...teams].sort(() => Math.random() - 0.5)
+    : [...teams];
+
+  const padded: (BracketTeam | null)[] = [...ordered];
   while (padded.length < size) padded.push(null);
 
   const rounds: BracketMatch[][] = [];
