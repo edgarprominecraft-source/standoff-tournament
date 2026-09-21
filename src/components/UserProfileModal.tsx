@@ -1,20 +1,13 @@
-$file = 'C:\standoff-tournament\src\components\UserProfileModal.tsx'
-
-$content = @'
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   X, User as UserIcon, UserPlus, UserMinus, Loader2,
-  Crown, Shield, Headphones, Trophy, Swords, Users, Coins,
+  Crown, Shield, Headphones, Swords,
 } from 'lucide-react';
 import { supabase, type User } from '../supabase';
 import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
 import {
-  type FriendUser,
-  addFriend,
-  removeFriend,
-  isFriend,
-  searchUserById,
+  type FriendUser, addFriend, removeFriend, isFriend, searchUserById,
 } from '../lib/friends';
 import RankBadge from './RankBadge';
 
@@ -48,18 +41,19 @@ export default function UserProfileModal({ userId, currentUser, onClose, onFrien
           .eq('user_id', userId)
           .maybeSingle();
         if (s) {
+          const row: any = s;
           setStats({
-            matches: (s as any).matches_played || 0,
-            wins: (s as any).wins || 0,
-            losses: (s as any).losses || 0,
-            kills: (s as any).kills || 0,
-            deaths: (s as any).deaths || 0,
+            matches: row.matches_played || 0,
+            wins: row.wins || 0,
+            losses: row.losses || 0,
+            kills: row.kills || 0,
+            deaths: row.deaths || 0,
           });
-          if ((s as any).clan_id) {
+          if (row.clan_id) {
             const { data: c } = await supabase
               .from('clans')
               .select('name, tag')
-              .eq('id', (s as any).clan_id)
+              .eq('id', row.clan_id)
               .maybeSingle();
             if (c) setClanName(`${(c as any).name} [${(c as any).tag}]`);
           }
@@ -69,7 +63,6 @@ export default function UserProfileModal({ userId, currentUser, onClose, onFrien
           setFriend(await isFriend(currentUser.user_id, userId));
         }
       }
-
       setLoading(false);
     })();
   }, [userId, currentUser.user_id, isMe]);
@@ -124,7 +117,6 @@ export default function UserProfileModal({ userId, currentUser, onClose, onFrien
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto"
       >
-        {/* Шапка */}
         <div className="bg-gradient-to-br from-orange to-orange2 h-24 relative">
           <button
             onClick={onClose}
@@ -145,7 +137,6 @@ export default function UserProfileModal({ userId, currentUser, onClose, onFrien
           </div>
         ) : (
           <div className="px-5 pb-5 -mt-12">
-            {/* Аватар */}
             <div className="flex items-end justify-between mb-3">
               <div className="w-24 h-24 rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center">
                 {user.avatar_url || user.photo_url ? (
@@ -162,7 +153,6 @@ export default function UserProfileModal({ userId, currentUser, onClose, onFrien
               )}
             </div>
 
-            {/* Имя + роль */}
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span
                 className="font-black text-2xl"
@@ -173,19 +163,16 @@ export default function UserProfileModal({ userId, currentUser, onClose, onFrien
               {roleBadge}
             </div>
 
-            {/* ID */}
             <div className="text-muted text-[11px] mb-3">
-              🆔 Standoff ID: <span className="text-black font-bold">{user.standoff_id || '—'}</span>
+              ID: <span className="text-black font-bold">{user.standoff_id || '—'}</span>
             </div>
 
-            {/* Rank */}
             {user.rank && (
               <div className="mb-4">
                 <RankBadge rankId={user.rank} size="md" />
               </div>
             )}
 
-            {/* Статистика */}
             <div className="bg-bg2 border border-border rounded-2xl overflow-hidden mb-3">
               <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
                 <span className="text-[10px] uppercase tracking-widest text-muted font-bold">Статистика</span>
@@ -199,7 +186,6 @@ export default function UserProfileModal({ userId, currentUser, onClose, onFrien
               </div>
             </div>
 
-            {/* Клан */}
             {clanName && (
               <div className="bg-card border border-border rounded-2xl p-3 mb-3 flex items-center gap-2">
                 <Swords className="w-4 h-4 text-orange" />
@@ -207,7 +193,6 @@ export default function UserProfileModal({ userId, currentUser, onClose, onFrien
               </div>
             )}
 
-            {/* Кнопка дружбы */}
             {!isMe && (
               friend ? (
                 <button
@@ -244,7 +229,3 @@ function StatCell({ label, value }: { label: string; value: string | number }) {
     </div>
   );
 }
-'@
-
-[System.IO.File]::WriteAllText($file, $content, (New-Object System.Text.UTF8Encoding $false))
-Write-Host "UserProfileModal.tsx создан. Строк: $((Get-Content $file).Count)" -ForegroundColor Green
