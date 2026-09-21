@@ -57,6 +57,11 @@ export default function App() {
         const { data: existing } = await supabase
           .from('users').select('*').eq('user_id', userId).maybeSingle();
         if (existing) {
+          // Синхронизируем username если изменился
+          if (tgUser.username && existing.username !== tgUser.username) {
+            await supabase.from('users').update({ username: tgUser.username }).eq('user_id', userId);
+            existing.username = tgUser.username;
+          }
           setUser(existing as User);
           setAdmin(await isAdmin(userId));
           setLoading(false);

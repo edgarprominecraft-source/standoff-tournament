@@ -85,11 +85,23 @@ function ClanList({ user, onBack, onJoined }: { user: User; onBack: () => void; 
 
   useEffect(() => { (async () => { setClans(await getAllClans()); setLoading(false); })(); }, []);
 
-  const handleJoin = async (clanId: number, mode: JoinMode = 'open') => {
+  const handleJoin = async (clanId: number) => {
+    const clan = clans.find(c => c.id === clanId);
+    if (!clan) return;
+
+    const mode: JoinMode = ((clan as any).join_mode || 'open') as JoinMode;
+
     if (mode === 'request') {
-      setSelectedClan(clans.find(c => c.id === clanId) || null);
+      setSelectedClan(clan);
       return;
     }
+
+    if (mode === 'invite') {
+      hapticError();
+      setError('Клан принимает только по приглашению');
+      return;
+    }
+
     setJoining(clanId); setError(null);
     const res = await joinClan(user.user_id, clanId);
     setJoining(null);

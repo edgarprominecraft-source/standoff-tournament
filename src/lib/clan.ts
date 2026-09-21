@@ -118,10 +118,54 @@ export async function createClan(
 }
 
 // ===== Вступить в клан =====
-export async function joinClan(userId: number, clanId: number): Promise<{ ok: boolean; error?: string }> {
+export async function joinClan(
+  userId: number,
+  clanId: number,
+  message?: string
+): Promise<{ ok: boolean; error?: string; pending?: boolean }> {
   const existing = await getUserClan(userId);
   if (existing) return { ok: false, error: 'Ты уже в клане' };
 
+  // Получаем режим вступления клана
+  const { data: clan } = await supabase
+    .from('clans')
+    .select('join_mode, name')
+    .eq('id', clanId)
+    .maybeSingle();
+
+  if (!clan) return { ok: false, error: 'Клан не найден' };
+
+  const mode: string = (clan as any).join_mode || 'open';
+
+  // 🔒 Закрытый — только по приглашению
+  if (mode === 'invite') {
+    return { ok: false, error: 'Клан принимает только по приглашению' };
+  }
+
+  // 🟡 По заявкам — создаём заявку и не добавляем сразу
+  if (mode === 'request') {
+    const { data: existingApp } = await supabase
+      .from('clan_applications')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('clan_id', clanId)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (existingApp) return { ok: false, error: 'Заявка уже отправлена' };
+
+    const { error: appErr } = await supabase.from('clan_applications').insert({
+      clan_id: clanId,
+      user_id: userId,
+      message: (message || '').slice(0, 300) || null,
+      status: 'pending',
+    });
+
+    if (appErr) return { ok: false, error: appErr.message };
+    return { ok: true, pending: true };
+  }
+
+  // 🟢 Открытый — сразу добавляем
   const { error } = await supabase.from('clan_members').insert({
     clan_id: clanId,
     user_id: userId,
