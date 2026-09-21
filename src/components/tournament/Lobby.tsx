@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, LogOut, Check, Hourglass, Crown, X, Shield, AlertTriangle } from 'lucide-react';
+import { Users, LogOut, Check, Hourglass, Crown, X, Shield, AlertTriangle, FileText } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
 import type { BracketTeam } from '../../lib/bracket';
@@ -22,6 +22,96 @@ type MyClan = {
 
 const MIN_CLAN_MEMBERS = 5;
 
+// ===== ТЕКСТ РЕГЛАМЕНТА (присылает организатор) =====
+const RULES_TEXT = `РЕГЛАМЕНТ TOURNAMENT (STANDOFF 2)
+
+1. ОБЩИЕ ПОЛОЖЕНИЯ
+
+1.1. Турнир проводится при поддержке и под контролем организаторов Seven Tournament.
+
+1.2. К участию допускаются игроки любой возрастной категории.
+
+1.3. Формат турнира, стадии, расписание, призовой фонд и другая информация публикуются в анонсе конкретного турнира.
+
+1.4. Регистрация на турнир означает полное согласие команды с настоящим регламентом.
+
+1.5. Все спорные ситуации, не предусмотренные данным регламентом, решаются администрацией турнира. Решение администрации является окончательным.
+
+1.6. Все матчи проводятся на последней актуальной версии игры Standoff 2. В случае выхода обновлений администрация вправе внести изменения в регламент.
+
+1.7. Запрещается использование:
+— ПК и эмуляторов;
+— стороннего программного обеспечения;
+— читов, макросов, триггеров;
+— геймпадов, джойстиков и других устройств, дающих преимущество.
+
+1.8. Время проведения матча согласовывается капитанами обеих команд. При невозможности договориться окончательное время назначает администрация.
+
+1.9. При необходимости участники обязаны быть подписаны на информационные ресурсы и спонсоров турнира.
+
+1.10. Использование Rog-прицела разрешено.
+
+2. РЕГИСТРАЦИЯ
+
+2.1. Регистрация осуществляется только через организаторов турнира.
+
+2.2. При регистрации необходимо указать:
+— название команды;
+— основной состав (5 игроков);
+— запасных игроков (до 3 человек);
+— игровые ID всех участников.
+
+2.3. Игроки могут не состоять под тегом команды в игре, если они указаны в официальной заявке.
+
+2.4. Замена игроков во время турнира возможна только с разрешения администрации.
+
+3. ПРОВЕДЕНИЕ МАТЧЕЙ
+
+3.1. Матчи проводятся в форматах BO1, BO2, BO3 или BO5 (в зависимости от стадии турнира).
+
+3.2. Игровые карты: Sandstone, Rust, Province, Breeze, Prison, Hanami, Dune.
+
+3.3. Настройки лобби:
+— режим — 5×5;
+— длительность раунда — 2:05;
+— количество раундов — 25;
+— стартовые деньги — $800;
+— максимальная сумма денег — $16 000.
+
+4. ТЕХНИЧЕСКИЕ ТРЕБОВАНИЯ
+
+4.1. По запросу администрации каждый игрок обязан предоставить:
+— СС (скриншот экрана в игре);
+— МС (скриншот экрана во вкладках).
+
+4.2. После каждого переподключения или перезахода в матч игрок обязан повторно предоставить СС и МС по требованию администрации.
+
+4.3. Отказ предоставить материалы в установленный срок приравнивается к техническому поражению или дисквалификации.
+
+5. РЕХОСТ
+
+5.1. Рехост возможен в следующих случаях:
+— вылет одного или нескольких игроков;
+— критический баг игры;
+— технические неполадки;
+— решение администрации.
+
+6. ТРЕБОВАНИЯ К СОЕДИНЕНИЮ
+
+6.1. Максимально допустимый пинг игрока — 180 ms.
+
+6.2. При превышении допустимого пинга в течении 5-ти раундов администрация вправе перенести матч, провести рехост или вынести иное решение.
+
+7. НАРУШЕНИЯ
+
+За нарушение настоящего регламента администрация может применить следующие санкции:
+— предупреждение;
+— снятие раундов;
+— техническое поражение;
+— дисквалификация команды или игрока.
+
+Администрация оставляет за собой право изменить меру наказания в зависимости от тяжести нарушения.`;
+
 export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) {
   const [teams, setTeams] = useState<BracketTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,8 +119,10 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const [msg, setMsg] = useState<string | null>(null);
   const [myClan, setMyClan] = useState<MyClan | null>(null);
   const [clanError, setClanError] = useState<string | null>(null);
+  const [showRules, setShowRules] = useState(false);
+  const [rulesTimer, setRulesTimer] = useState(10);
+  const [rulesAccepted, setRulesAccepted] = useState(false);
 
-  // ====== Загрузка команд ======
   const loadTeams = async () => {
     const { data: rawTeams } = await supabase
       .from('teams')
@@ -58,7 +150,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     setLoading(false);
   };
 
-  // ====== Загрузка моего клана ======
   const loadMyClan = async () => {
     if (!user.clan_id) {
       setMyClan(null);
@@ -114,49 +205,55 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     return () => { supabase.removeChannel(channel); };
   }, [tournamentId, user.clan_id]);
 
-  // ====== Моя команда (по клану) ======
+  // ===== Таймер регламента =====
+  useEffect(() => {
+    if (!showRules) return;
+    setRulesTimer(10);
+    const t = setInterval(() => {
+      setRulesTimer((s) => {
+        if (s <= 1) {
+          clearInterval(t);
+          handleDeclineRules();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [showRules]);
+
   const myTeam = teams.find((t) => t.name === myClan?.name);
   const alreadyJoined = !!myTeam;
   const full = teams.length >= maxTeams;
 
-  // ====== Вступить от клана ======
-  const joinWithClan = async () => {
-    if (!myClan) {
-      hapticError();
-      setMsg('Сначала вступи в клан');
-      return;
-    }
-    if (clanError) {
-      hapticError();
-      setMsg(clanError);
-      return;
-    }
-    if (alreadyJoined) {
-      hapticError();
-      setMsg('Твой клан уже участвует');
-      return;
-    }
-    if (full) {
-      hapticError();
-      setMsg('Все места заняты');
-      return;
-    }
-
-    setJoining(true);
+  const openRules = () => {
+    if (!myClan) { hapticError(); setMsg('Сначала вступи в клан'); return; }
+    if (clanError) { hapticError(); setMsg(clanError); return; }
+    if (alreadyJoined) { hapticError(); setMsg('Твой клан уже участвует'); return; }
+    if (full) { hapticError(); setMsg('Все места заняты'); return; }
     haptic('medium');
+    setShowRules(true);
+  };
+
+  const handleAcceptRules = async () => {
+    setShowRules(false);
+    setJoining(true);
+    hapticSuccess();
 
     try {
       const { error } = await supabase.from('teams').insert({
         tournament_id: tournamentId,
         player1_id: user.user_id,
         captain_id: user.user_id,
-        clan_id: myClan.id,
-        clan_name: myClan.name,
-        clan_tag: myClan.tag,
-        clan_logo_url: myClan.logo_url,
-        team_name: myClan.name,
-        logo_url: myClan.logo_url,
+        clan_id: myClan!.id,
+        clan_name: myClan!.name,
+        clan_tag: myClan!.tag,
+        clan_logo_url: myClan!.logo_url,
+        team_name: myClan!.name,
+        logo_url: myClan!.logo_url,
         side: Math.random() < 0.5 ? 'left' : 'right',
+        rules_accepted: true,
+        rules_accepted_at: new Date().toISOString(),
       });
 
       if (error) {
@@ -164,7 +261,8 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         setMsg(error.message);
       } else {
         hapticSuccess();
-        setMsg(`Клан "${myClan.name}" вступил в турнир!`);
+        setMsg(`Клан "${myClan!.name}" вступил в турнир!`);
+        setRulesAccepted(true);
       }
     } catch (e: any) {
       hapticError();
@@ -173,7 +271,12 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     setJoining(false);
   };
 
-  // ====== Покинуть турнир (лидер) ======
+  const handleDeclineRules = () => {
+    setShowRules(false);
+    hapticError();
+    setMsg('Регламент отклонён. Для участия нужно принять.');
+  };
+
   const leaveTournament = async () => {
     if (!myTeam) return;
     haptic('medium');
@@ -186,7 +289,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
 
     if (!teamData) return;
 
-    // Только лидер клана может выйти
     const { data: member } = await supabase
       .from('clan_members')
       .select('role')
@@ -255,7 +357,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </motion.div>
       )}
 
-      {/* Мой клан */}
       {!myClan ? (
         <div className="bg-card border-2 border-orange/40 rounded-2xl p-5 text-center">
           <div className="w-16 h-16 rounded-2xl bg-orange/10 border border-orange/30 flex items-center justify-center mx-auto mb-3">
@@ -306,25 +407,22 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </motion.div>
       )}
 
-      {/* Кнопки действия */}
       {myClan && (
         <>
           {!alreadyJoined ? (
             <button
-              onClick={joinWithClan}
+              onClick={openRules}
               disabled={joining || full || !!clanError}
               className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors flex items-center justify-center gap-2"
             >
               <Shield className="w-4 h-4" />
-              {full ? 'Мест нет' : joining ? 'Вступаем...' : 'Вступить от клана'}
+              {full ? 'Мест нет' : 'Вступить от клана'}
             </button>
           ) : (
             <div className="bg-card border border-success/40 rounded-2xl p-4 shadow-card">
               <div className="flex items-center gap-2 mb-2">
                 <Check className="w-5 h-5 text-success" />
-                <span className="text-black font-bold text-sm">
-                  Клан в турнире
-                </span>
+                <span className="text-black font-bold text-sm">Клан в турнире</span>
               </div>
               <button
                 onClick={leaveTournament}
@@ -338,7 +436,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         </>
       )}
 
-      {/* Список кланов в турнире */}
       <div className="space-y-2">
         <div className="text-muted text-[10px] uppercase tracking-widest px-1 font-bold">
           Кланы в турнире ({teams.length})
@@ -375,6 +472,61 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
           </div>
         )}
       </div>
+
+      {/* ===== МОДАЛКА РЕГЛАМЕНТА ===== */}
+      <AnimatePresence>
+        {showRules && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6"
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col"
+            >
+              <div className="p-5 border-b border-border flex items-center justify-between bg-gradient-to-br from-orange to-orange2">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-white" />
+                  <div className="text-white font-black">Регламент турнира</div>
+                </div>
+                <div className="bg-white/20 backdrop-blur border border-white/40 rounded-full px-3 py-1 text-white font-black text-sm">
+                  {rulesTimer}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5">
+                <pre className="text-[11px] text-black whitespace-pre-wrap leading-relaxed font-sans">
+                  {RULES_TEXT}
+                </pre>
+              </div>
+
+              <div className="p-5 border-t border-border space-y-2">
+                <button
+                  onClick={handleAcceptRules}
+                  disabled={joining}
+                  className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  Принять и участвовать
+                </button>
+                <button
+                  onClick={handleDeclineRules}
+                  className="w-full bg-bg2 border border-border text-muted font-bold rounded-2xl py-3 text-xs"
+                >
+                  Отменить
+                </button>
+                <p className="text-muted text-[10px] text-center">
+                  У тебя {rulesTimer} сек, чтобы принять
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
