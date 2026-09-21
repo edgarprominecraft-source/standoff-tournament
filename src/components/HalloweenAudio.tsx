@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Volume2, VolumeX, Play, Pause, SkipForward, SkipBack,
@@ -251,7 +251,7 @@ export default function HalloweenAudio() {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={togglePlay}
-        className="fixed bottom-24 right-4 z-[70] w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+        className="fixed bottom-24 right-4 z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
         style={{
           background: 'linear-gradient(135deg, #6a1b9a 0%, #2d0a4a 100%)',
           border: '1px solid rgba(255, 107, 0, 0.55)',
@@ -301,7 +301,7 @@ export default function HalloweenAudio() {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={() => setPanelOpen((v) => !v)}
-        className="fixed bottom-24 right-[68px] z-[70] w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+        className="fixed bottom-24 right-[68px] z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
         style={{
           background: 'linear-gradient(135deg, #2d0a4a 0%, #6a1b9a 100%)',
           border: '1px solid rgba(255, 107, 0, 0.4)',
@@ -320,7 +320,7 @@ export default function HalloweenAudio() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-            className="fixed bottom-[88px] right-4 z-[71] w-[300px] rounded-2xl overflow-hidden"
+            className="fixed bottom-[88px] right-4 z-40 w-[300px] rounded-2xl overflow-hidden"
             style={{
               background: 'linear-gradient(160deg, rgba(20,6,30,0.97) 0%, rgba(45,10,74,0.97) 100%)',
               border: '1px solid rgba(255, 107, 0, 0.35)',

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Users, Search, UserPlus, MessageCircle, Check, UserMinus } from 'lucide-react';
 import { supabase } from '../supabase';
@@ -33,7 +33,7 @@ export default function FriendsModal({ userId, onClose }: Props) {
     setSearching(true);
     const q = query.trim();
     let req = supabase.from('users').select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, nickname_color, role, rank, last_seen').neq('user_id', userId).limit(20);
-    if (/^\d{5,}$/.test(q)) req = req.eq('standoff_id', q);
+    if (/^\d{5,}$/.test(q)) req = req.or(`user_id.eq.${q},standoff_id.eq.${q}`);
     else if (q.startsWith('@')) req = req.ilike('username', q.slice(1));
     else req = req.ilike('nickname', `%${q}%`);
     const { data } = await req;
