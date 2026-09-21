@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, UserCheck, UserX, Users, Check, XCircle } from 'lucide-react';
 import {
@@ -22,6 +22,11 @@ export default function ClanApplicationsModal({ clanId, onClose, onCountChange }
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
+
+  useEffect(() => {
+    document.body.classList.add('modal-open');
+    return () => { document.body.classList.remove('modal-open'); };
+  }, []);
 
   const load = async () => {
     setLoading(true);

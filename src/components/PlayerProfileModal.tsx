@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, UserPlus, UserMinus, MessageCircle, Crown, Shield, Headphones } from 'lucide-react';
 import { supabase } from '../supabase';
@@ -19,6 +19,11 @@ export default function PlayerProfileModal({ userId, currentUserId, onClose }: P
   const [friend, setFriend] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('modal-open');
+    return () => { document.body.classList.remove('modal-open'); };
+  }, []);
 
   useEffect(() => {
     (async () => {

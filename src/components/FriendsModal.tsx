@@ -20,6 +20,11 @@ export default function FriendsModal({ userId, onClose }: Props) {
   const [searching, setSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
 
+  useEffect(() => {
+    document.body.classList.add('modal-open');
+    return () => { document.body.classList.remove('modal-open'); };
+  }, []);
+
   const load = async () => {
     setLoading(true);
     setFriends(await getFriends(userId));
