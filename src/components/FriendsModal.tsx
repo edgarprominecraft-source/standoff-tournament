@@ -25,12 +25,10 @@ export default function FriendsModal({ userId, onClose }: Props) {
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
   };
-
   useEffect(() => {
     document.body.classList.add('modal-open');
     return () => { document.body.classList.remove('modal-open'); };
@@ -60,7 +58,7 @@ export default function FriendsModal({ userId, onClose }: Props) {
       .neq('user_id', userId).limit(20);
     if (/^\d{5,}$/.test(q)) req = req.or(`user_id.eq.${q},standoff_id.eq.${q}`);
     else if (q.startsWith('@')) req = req.ilike('username', q.slice(1));
-    else req = req.ilike('nickname', `%${q}%`);
+    else req = req.or(`nickname.ilike.%${q}%,first_name.ilike.%${q}%,username.ilike.%${q}%`);
     const { data, error } = await req;
     if (error) {
       showToast('Ошибка: ' + error.message);
@@ -325,6 +323,19 @@ export default function FriendsModal({ userId, onClose }: Props) {
           </div>
         </motion.div>
       </motion.div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-black text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg z-[90]"
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {toast && (

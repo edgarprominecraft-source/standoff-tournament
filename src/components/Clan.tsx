@@ -262,6 +262,8 @@ function ClanView({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const bannerRef = useRef<HTMLInputElement>(null);
+
+
   const [selectedMember, setSelectedMember] = useState<number | null>(null);
   const [showApplications, setShowApplications] = useState(false);
   const [applicationsCount, setApplicationsCount] = useState(0);
@@ -347,7 +349,7 @@ function ClanView({
     hapticSuccess(); onClanUpdate();
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!isLeader && !isOfficer) { hapticError(); alert('Только лидер/офицер'); return; }
