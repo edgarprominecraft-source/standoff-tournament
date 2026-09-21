@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Users, Search, UserPlus, Check, UserMinus, Inbox, Clock } from 'lucide-react';
 import { supabase } from '../supabase';
@@ -24,6 +24,12 @@ export default function FriendsModal({ userId, onClose }: Props) {
   const [searching, setSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   useEffect(() => {
     document.body.classList.add('modal-open');
@@ -55,11 +61,18 @@ export default function FriendsModal({ userId, onClose }: Props) {
     if (/^\d{5,}$/.test(q)) req = req.or(`user_id.eq.${q},standoff_id.eq.${q}`);
     else if (q.startsWith('@')) req = req.ilike('username', q.slice(1));
     else req = req.ilike('nickname', `%${q}%`);
-    const { data } = await req;
-    setResults(((data || []) as FriendUser[]).map((u) => ({
+    const { data, error } = await req;
+    if (error) {
+      showToast('Ошибка: ' + error.message);
+      setSearching(false);
+      return;
+    }
+    const found = ((data || []) as FriendUser[]).map((u) => ({
       ...u,
       is_online: u.last_seen ? Date.now() - new Date(u.last_seen).getTime() < 5 * 60 * 1000 : false,
-    })));
+    }));
+    setResults(found);
+    if (found.length === 0) showToast('Никого не найдено');
     setSearching(false);
   };
 
@@ -72,7 +85,7 @@ export default function FriendsModal({ userId, onClose }: Props) {
     haptic('medium');
     const res = await sendFriendRequest(userId, id);
     setBusy(null);
-    if (!res.ok) { hapticError(); return; }
+    if (!res.ok) { hapticError(); showToast(res.error || 'Ошибка'); return; }
     hapticSuccess();
     load();
   };
@@ -312,6 +325,19 @@ export default function FriendsModal({ userId, onClose }: Props) {
           </div>
         </motion.div>
       </motion.div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-black text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg z-[90]"
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {selectedUser && (

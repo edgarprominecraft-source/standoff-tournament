@@ -260,6 +260,8 @@ function ClanView({
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const bannerRef = useRef<HTMLInputElement>(null);
   const [selectedMember, setSelectedMember] = useState<number | null>(null);
   const [showApplications, setShowApplications] = useState(false);
   const [applicationsCount, setApplicationsCount] = useState(0);
@@ -327,6 +329,24 @@ function ClanView({
     setJoinMode(mode); hapticSuccess();
   };
 
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!isLeader && !isOfficer) { hapticError(); alert('Только лидер/офицер'); return; }
+    if (file.size > 5 * 1024 * 1024) { hapticError(); alert('Макс 5 МБ'); return; }
+    haptic('medium'); setUploadingBanner(true);
+    const ext = file.name.split('.').pop() || 'png';
+    const path = `clan-banners/${clan.id}_${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('standoff').upload(path, file, { upsert: true, cacheControl: '3600' });
+    if (upErr) { setUploadingBanner(false); hapticError(); alert(upErr.message); return; }
+    const { data } = supabase.storage.from('standoff').getPublicUrl(path);
+    const url = data.publicUrl + '?t=' + Date.now();
+    const { error: updErr } = await updateClan(clan.id, { banner_url: url } as any);
+    setUploadingBanner(false);
+    if (updErr) { hapticError(); alert((updErr as any).message || 'Ошибка'); return; }
+    hapticSuccess(); onClanUpdate();
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -348,7 +368,24 @@ function ClanView({
   return (
     <div className="space-y-4">
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-card">
-        <div className="h-24 bg-gradient-to-br from-orange to-orange2" />
+        <div className="relative h-24 bg-gradient-to-br from-orange to-orange2 overflow-hidden">
+            {(clan as any).banner_url && (
+              <img src={(clan as any).banner_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            )}
+            {(isLeader || isOfficer) && (
+              <>
+                <button
+                  onClick={() => bannerRef.current?.click()}
+                  disabled={uploadingBanner}
+                  className="absolute top-2 right-2 bg-black/50 backdrop-blur border border-white/40 text-white text-[10px] font-bold rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Camera className="w-3 h-3" />
+                  {uploadingBanner ? 'Загрузка...' : 'Фон'}
+                </button>
+                <input ref={bannerRef} type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
+              </>
+            )}
+          </div>
         <div className="px-5 pb-5 -mt-10">
           <div className="relative inline-block">
             <div className="w-20 h-20 rounded-3xl bg-white border-4 border-white flex items-center justify-center overflow-hidden">
