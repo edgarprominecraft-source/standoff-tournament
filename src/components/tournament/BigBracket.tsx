@@ -59,7 +59,7 @@ export default function BigBracket({
     <div className="bg-white rounded-3xl border border-border p-4 shadow-card overflow-x-auto">
       <div className="flex items-stretch min-w-max gap-4">
         {/* ЛЕВАЯ СТОРОНА */}
-        <div className="flex gap-5">
+        <div className="flex gap-6">
           {leftRounds.map((r) => (
             <BracketColumn
               key={`L-${r.rIdx}`}
@@ -116,7 +116,7 @@ export default function BigBracket({
         </div>
 
         {/* ПРАВАЯ СТОРОНА */}
-        <div className="flex gap-5">
+        <div className="flex gap-6">
           {rightRoundsOrdered.map((r) => (
             <BracketColumn
               key={`R-${r.rIdx}`}
@@ -163,11 +163,8 @@ function BracketColumn({
   myTeamId?: number | null;
   matchTimeMap: Record<number, string | null>;
 }) {
-  // Группируем матчи в пары — по 2 на каждую ветку
-  const pairs: BracketMatch[][] = [];
-  for (let i = 0; i < matches.length; i += 2) {
-    pairs.push(matches.slice(i, i + 2));
-  }
+  const N = matches.length;
+  const pairCount = Math.floor(N / 2);
 
   return (
     <div className="flex-shrink-0 flex flex-col" style={{ width: 200 }}>
@@ -176,59 +173,49 @@ function BracketColumn({
           {label}
         </div>
         <div className="text-muted text-[10px] font-bold mt-0.5">
-          {matches.length} {matches.length === 1 ? 'матч' : 'матчей'}
+          {N} {N === 1 ? 'матч' : 'матчей'}
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col justify-around gap-4">
-        {pairs.map((pair, pIdx) => (
-          <div key={pIdx} className="relative">
-            {/* Верхняя карточка пары */}
-            <MatchCard
-              match={pair[0]}
-              label={`M${pIdx * 2 + 1}`}
-              onClick={pair[0]?.matchId && onMatchClick ? () => onMatchClick(pair[0]) : undefined}
-              onTeamClick={onTeamClick}
-              myTeamId={myTeamId}
-              scheduledTime={pair[0]?.matchId ? matchTimeMap[pair[0].matchId] ?? null : null}
-            />
+      <div className="flex-1 flex flex-col justify-around relative">
+        {matches.map((m, i) => (
+          <MatchCard
+            key={i}
+            match={m}
+            label={`M${i + 1}`}
+            onClick={m.matchId && onMatchClick ? () => onMatchClick(m) : undefined}
+            onTeamClick={onTeamClick}
+            myTeamId={myTeamId}
+            scheduledTime={m.matchId ? matchTimeMap[m.matchId] ?? null : null}
+          />
+        ))}
 
-            {pair[1] && (
-              <>
-                <div className="h-4" />
-                <MatchCard
-                  match={pair[1]}
-                  label={`M${pIdx * 2 + 2}`}
-                  onClick={pair[1]?.matchId && onMatchClick ? () => onMatchClick(pair[1]) : undefined}
-                  onTeamClick={onTeamClick}
-                  myTeamId={myTeamId}
-                  scheduledTime={pair[1]?.matchId ? matchTimeMap[pair[1].matchId] ?? null : null}
-                />
+        {/* Вертикальная линия — соединяет две карточки пары */}
+        {Array.from({ length: pairCount }).map((_, j) => (
+          <div
+            key={`v-${j}`}
+            className="absolute bg-orange/60 pointer-events-none"
+            style={{
+              [side === 'left' ? 'right' : 'left']: -14,
+              top: `${((4 * j + 1) / (2 * N)) * 100}%`,
+              height: `${100 / N}%`,
+              width: 2,
+            }}
+          />
+        ))}
 
-                {/* Вертикальная линия — от центра верхней до центра нижней карточки */}
-                <div
-                  className="absolute bg-orange/50 pointer-events-none"
-                  style={{
-                    [side === 'left' ? 'right' : 'left']: -22,
-                    top: '25%',
-                    height: '50%',
-                    width: 2,
-                  }}
-                />
-
-                {/* Горизонтальная линия — от середины пары к следующему раунду */}
-                <div
-                  className="absolute bg-orange/50 pointer-events-none"
-                  style={{
-                    [side === 'left' ? 'right' : 'left']: -22,
-                    top: '50%',
-                    width: 12,
-                    height: 2,
-                  }}
-                />
-              </>
-            )}
-          </div>
+        {/* Горизонтальная линия — от середины пары в следующий раунд */}
+        {Array.from({ length: pairCount }).map((_, j) => (
+          <div
+            key={`h-${j}`}
+            className="absolute bg-orange/60 pointer-events-none"
+            style={{
+              [side === 'left' ? 'right' : 'left']: -14,
+              top: `calc(${((2 * j + 1) / N) * 100}% - 1px)`,
+              width: 16,
+              height: 2,
+            }}
+          />
         ))}
       </div>
     </div>
