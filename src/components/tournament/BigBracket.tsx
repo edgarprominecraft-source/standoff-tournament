@@ -163,6 +163,12 @@ function BracketColumn({
   myTeamId?: number | null;
   matchTimeMap: Record<number, string | null>;
 }) {
+  // Группируем матчи в пары — по 2 на каждую ветку
+  const pairs: BracketMatch[][] = [];
+  for (let i = 0; i < matches.length; i += 2) {
+    pairs.push(matches.slice(i, i + 2));
+  }
+
   return (
     <div className="flex-shrink-0 flex flex-col" style={{ width: 200 }}>
       <div className="text-center mb-3">
@@ -174,63 +180,56 @@ function BracketColumn({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col justify-around gap-4 relative">
-        {matches.map((m, mIdx) => {
-          const isTop = mIdx % 2 === 0;
-          const hasPairBelow = mIdx % 2 === 0 && mIdx + 1 < matches.length;
+      <div className="flex-1 flex flex-col justify-around gap-4">
+        {pairs.map((pair, pIdx) => (
+          <div key={pIdx} className="relative">
+            {/* Верхняя карточка пары */}
+            <MatchCard
+              match={pair[0]}
+              label={`M${pIdx * 2 + 1}`}
+              onClick={pair[0]?.matchId && onMatchClick ? () => onMatchClick(pair[0]) : undefined}
+              onTeamClick={onTeamClick}
+              myTeamId={myTeamId}
+              scheduledTime={pair[0]?.matchId ? matchTimeMap[pair[0].matchId] ?? null : null}
+            />
 
-          return (
-            <div key={mIdx} className="relative">
-              <MatchCard
-                match={m}
-                label={`M${mIdx + 1}`}
-                onClick={m.matchId && onMatchClick ? () => onMatchClick(m) : undefined}
-                onTeamClick={onTeamClick}
-                myTeamId={myTeamId}
-                scheduledTime={m.matchId ? matchTimeMap[m.matchId] ?? null : null}
-              />
+            {pair[1] && (
+              <>
+                <div className="h-4" />
+                <MatchCard
+                  match={pair[1]}
+                  label={`M${pIdx * 2 + 2}`}
+                  onClick={pair[1]?.matchId && onMatchClick ? () => onMatchClick(pair[1]) : undefined}
+                  onTeamClick={onTeamClick}
+                  myTeamId={myTeamId}
+                  scheduledTime={pair[1]?.matchId ? matchTimeMap[pair[1].matchId] ?? null : null}
+                />
 
-              {/* Верхняя половина пары — вертикальная линия вниз */}
-              {isTop && hasPairBelow && (
+                {/* Вертикальная линия — от центра верхней до центра нижней карточки */}
                 <div
-                  className="absolute bg-orange/40"
+                  className="absolute bg-orange/50 pointer-events-none"
                   style={{
-                    [side === 'left' ? 'right' : 'left']: -20,
-                    top: '50%',
-                    height: 'calc(100% + 16px)',
+                    [side === 'left' ? 'right' : 'left']: -22,
+                    top: '25%',
+                    height: '50%',
                     width: 2,
                   }}
                 />
-              )}
 
-              {/* Нижняя половина — горизонталь к соединителю */}
-              {!isTop && (
+                {/* Горизонтальная линия — от середины пары к следующему раунду */}
                 <div
-                  className="absolute bg-orange/40"
+                  className="absolute bg-orange/50 pointer-events-none"
                   style={{
-                    [side === 'left' ? 'right' : 'left']: -20,
+                    [side === 'left' ? 'right' : 'left']: -22,
                     top: '50%',
                     width: 12,
                     height: 2,
                   }}
                 />
-              )}
-
-              {/* Отвод в следующий раунд — на среднем узле пары */}
-              {isTop && hasPairBelow && (
-                <div
-                  className="absolute bg-orange/40"
-                  style={{
-                    [side === 'left' ? 'right' : 'left']: -32,
-                    top: 'calc(50% + 50% + 8px)',
-                    width: 12,
-                    height: 2,
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
+              </>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -275,6 +274,7 @@ function MatchCard({
       className={`w-full bg-white border rounded-xl p-2 transition-all relative ${
         match.winner ? 'border-orange/60 bg-orange/5' : 'border-border'
       } ${onClick ? 'cursor-pointer hover:border-orange' : ''}`}
+      style={{ minHeight: 88 }}
       onClick={onClick}
     >
       <div className="flex items-center justify-between text-[9px] text-muted font-bold mb-1">
