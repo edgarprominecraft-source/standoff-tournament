@@ -171,8 +171,8 @@ export default function Profile({ user, setUser }: Props) {
         className="bg-card border border-border rounded-3xl overflow-hidden shadow-card"
       >
         <div
-          className={`relative ${!user.custom_banner_url ? (currentBanner?.css || 'bg-gradient-to-br from-orange to-orange2') : ''}`}
-          style={{ height: 96, ...bannerStyle }}
+          className={`h-24 relative ${!user.custom_banner_url ? (currentBanner?.css || 'bg-gradient-to-br from-orange to-orange2') : ''}`}
+          style={bannerStyle}
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.3),transparent_65%)]" />
         </div>
