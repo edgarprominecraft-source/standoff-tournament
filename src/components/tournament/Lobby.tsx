@@ -4,6 +4,7 @@ import { Users, LogOut, Check, Hourglass, Crown, X, Shield, AlertTriangle, FileT
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
 import type { BracketTeam } from '../../lib/bracket';
+import { createBracketMatches } from '../../lib/match';
 
 type Props = {
   tournamentId: number;
@@ -112,7 +113,15 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       setAlreadyJoined(enriched.some((t) => t.clan_id === myClanId));
     }
 
-    if (enriched.length >= maxTeams) onReady();
+    if (enriched.length >= maxTeams) {
+      const res = await createBracketMatches(tournamentId);
+      if (res.ok) {
+        console.log('[bracket] created matches:', res.created);
+        onReady();
+      } else {
+        console.warn('[bracket] failed:', res.error);
+      }
+    }
     setLoading(false);
   };
 
