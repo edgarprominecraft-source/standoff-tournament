@@ -8,8 +8,7 @@ import {
 } from '../lib/organizers';
 import { type User, supabase } from '../supabase';
 import { buildBracket, type BracketMatch, type BracketTeam } from '../lib/bracket';
-import { haptic } from '../lib/telegram';
-import { getTelegramUser } from '../lib/telegram';
+import { haptic, getTelegramUser } from '../lib/telegram';
 import BigBracket from './tournament/BigBracket';
 import TeamInfoModal from './tournament/TeamInfoModal';
 import SponsorModal, { type Sponsor } from './tournament/SponsorModal';
@@ -53,7 +52,6 @@ export default function OrganizerPage({ user }: Props) {
   const handleJoin = async (t: Tournament) => {
     haptic('medium');
 
-    // Проверяем спонсоров турнира
     const { data: ts } = await supabase
       .from('tournament_sponsors')
       .select('sponsor_id, sponsors(*)')
@@ -75,7 +73,7 @@ export default function OrganizerPage({ user }: Props) {
     setInLobby(t);
   };
 
-  // ===== Экран лобби (регистрация от клана) =====
+  // ===== Экран лобби =====
   if (inLobby) {
     return (
       <div className="space-y-4">
@@ -99,7 +97,6 @@ export default function OrganizerPage({ user }: Props) {
           maxTeams={inLobby.max_teams}
           user={user}
           onReady={() => {
-            // Когда набралось достаточно — показать сетку
             setSelectedTournament(inLobby);
             setInLobby(null);
           }}
@@ -108,7 +105,7 @@ export default function OrganizerPage({ user }: Props) {
     );
   }
 
-  // ===== Экран сетки турнира =====
+  // ===== Экран сетки =====
   if (selectedTournament) {
     return (
       <TournamentBracketView
@@ -310,7 +307,6 @@ export default function OrganizerPage({ user }: Props) {
         </div>
       )}
 
-      {/* SponsorModal для подписки перед лобби */}
       <AnimatePresence>
         {sponsorModal && (
           <SponsorModal
@@ -342,6 +338,7 @@ function TournamentBracketView({
   const [loading, setLoading] = useState(true);
   const [matchCount, setMatchCount] = useState(0);
   const [selectedTeam, setSelectedTeam] = useState<BracketTeam | null>(null);
+  const [myTeamId, setMyTeamId] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -361,6 +358,12 @@ function TournamentBracketView({
       if (!rawTeams || rawTeams.length === 0) {
         setLoading(false);
         return;
+      }
+
+      // Определяем мою команду по clan_id
+      if (user.clan_id) {
+        const mine = (rawTeams as any[]).find((t) => t.clan_id === user.clan_id);
+        setMyTeamId(mine?.id || null);
       }
 
       const teams: BracketTeam[] = (rawTeams as any[]).map((t) => ({
@@ -401,7 +404,7 @@ function TournamentBracketView({
       setRounds(built);
       setLoading(false);
     })();
-  }, [tournament.id]);
+  }, [tournament.id, user.clan_id]);
 
   return (
     <div className="space-y-4">
@@ -444,9 +447,8 @@ function TournamentBracketView({
       ) : (
         <BigBracket
           rounds={rounds}
-          onMatchClick={(match) => {
-            if (match.team1) setSelectedTeam(match.team1);
-          }}
+          onTeamClick={(team) => setSelectedTeam(team)}
+          myTeamId={myTeamId}
         />
       )}
 

@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion';
 import { Trophy, Swords, Shield } from 'lucide-react';
-import type { BracketMatch } from '../../lib/bracket';
+import type { BracketMatch, BracketTeam } from '../../lib/bracket';
 import { roundName } from '../../lib/bracket';
 
 type Props = {
   rounds: BracketMatch[][];
   onMatchClick?: (match: BracketMatch) => void;
+  onTeamClick?: (team: BracketTeam) => void;
+  myTeamId?: number | null;
 };
 
 function getRoundLabel(rIdx: number, totalRounds: number): string {
@@ -18,7 +20,7 @@ function getRoundLabel(rIdx: number, totalRounds: number): string {
   return roundName(rIdx + 1, totalRounds);
 }
 
-export default function BigBracket({ rounds, onMatchClick }: Props) {
+export default function BigBracket({ rounds, onMatchClick, onTeamClick, myTeamId }: Props) {
   if (rounds.length === 0) {
     return (
       <div className="bg-card border border-border rounded-3xl p-8 text-center shadow-card">
@@ -31,7 +33,6 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
   const totalRounds = rounds.length;
   const finalRoundIdx = totalRounds - 1;
 
-  // Разбиваем каждую non-final раунд на левую/правую половины
   const leftRounds: { rIdx: number; matches: BracketMatch[] }[] = [];
   const rightRounds: { rIdx: number; matches: BracketMatch[] }[] = [];
 
@@ -42,9 +43,7 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
     rightRounds.push({ rIdx: r, matches: round.slice(half) });
   }
 
-  // Правая сторона отображается в обратном порядке (ближе к центру — меньшие раунды)
   const rightRoundsOrdered = [...rightRounds].reverse();
-
   const finalMatch = rounds[finalRoundIdx]?.[0];
   const champion = finalMatch?.winner;
 
@@ -60,11 +59,13 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
               label={getRoundLabel(r.rIdx, totalRounds)}
               side="left"
               onMatchClick={onMatchClick}
+              onTeamClick={onTeamClick}
+              myTeamId={myTeamId}
             />
           ))}
         </div>
 
-        {/* ===== ЦЕНТР: ФИНАЛ + ЧЕМПИОН ===== */}
+        {/* ===== ЦЕНТР ===== */}
         <div className="flex flex-col justify-center gap-3 px-2">
           <div className="text-center">
             <div className="text-orange text-[11px] font-black uppercase tracking-widest">
@@ -82,10 +83,11 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
                   ? () => onMatchClick(finalMatch)
                   : undefined
               }
+              onTeamClick={onTeamClick}
+              myTeamId={myTeamId}
             />
           </div>
 
-          {/* Чемпион */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -107,7 +109,7 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
           </motion.div>
         </div>
 
-        {/* ===== ПРАВАЯ СТОРОНА (обратный порядок) ===== */}
+        {/* ===== ПРАВАЯ СТОРОНА ===== */}
         <div className="flex gap-2">
           {rightRoundsOrdered.map((r) => (
             <BracketColumn
@@ -116,6 +118,8 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
               label={getRoundLabel(r.rIdx, totalRounds)}
               side="right"
               onMatchClick={onMatchClick}
+              onTeamClick={onTeamClick}
+              myTeamId={myTeamId}
             />
           ))}
         </div>
@@ -124,21 +128,23 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
   );
 }
 
-// ===== Колонка раунда =====
 function BracketColumn({
   matches,
   label,
   side,
   onMatchClick,
+  onTeamClick,
+  myTeamId,
 }: {
   matches: BracketMatch[];
   label: string;
   side: 'left' | 'right';
   onMatchClick?: (match: BracketMatch) => void;
+  onTeamClick?: (team: BracketTeam) => void;
+  myTeamId?: number | null;
 }) {
   return (
     <div className="flex-shrink-0 flex flex-col" style={{ width: 200 }}>
-      {/* Заголовок */}
       <div className="text-center mb-3">
         <div className="text-orange text-[11px] font-black uppercase tracking-widest">
           {label}
@@ -148,19 +154,16 @@ function BracketColumn({
         </div>
       </div>
 
-      {/* Матчи распределены по вертикали */}
       <div className="flex-1 flex flex-col justify-around gap-2">
         {matches.map((m, mIdx) => (
           <div key={mIdx} className="relative">
             <MatchCard
               match={m}
               label={`M${mIdx + 1}`}
-              onClick={
-                m.matchId && onMatchClick ? () => onMatchClick(m) : undefined
-              }
+              onClick={m.matchId && onMatchClick ? () => onMatchClick(m) : undefined}
+              onTeamClick={onTeamClick}
+              myTeamId={myTeamId}
             />
-
-            {/* Линия к следующему раунду */}
             <div
               className="absolute bg-orange/40"
               style={{
@@ -177,15 +180,18 @@ function BracketColumn({
   );
 }
 
-// ===== Карточка матча =====
 function MatchCard({
   match,
   label,
   onClick,
+  onTeamClick,
+  myTeamId,
 }: {
   match: BracketMatch | undefined;
   label: string;
   onClick?: () => void;
+  onTeamClick?: (team: BracketTeam) => void;
+  myTeamId?: number | null;
 }) {
   if (!match) {
     return (
@@ -200,16 +206,10 @@ function MatchCard({
   }
 
   return (
-    <motion.button
-      onClick={onClick}
-      disabled={!onClick}
-      whileHover={onClick ? { scale: 1.02 } : {}}
-      whileTap={onClick ? { scale: 0.98 } : {}}
-      className={`w-full bg-white border rounded-xl p-2 text-left transition-all ${
-        onClick
-          ? 'border-border hover:border-orange hover:shadow-card cursor-pointer'
-          : 'border-border'
-      } ${match.winner ? 'border-orange/60 bg-orange/5' : ''}`}
+    <div
+      className={`w-full bg-white border rounded-xl p-2 transition-all ${
+        match.winner ? 'border-orange/60 bg-orange/5' : 'border-border'
+      }`}
     >
       <div className="text-[9px] text-muted font-bold mb-1 flex items-center gap-1">
         <Swords className="w-2.5 h-2.5" />
@@ -219,6 +219,8 @@ function MatchCard({
       <TeamRow
         team={match.team1}
         isWinner={match.winner?.id === match.team1?.id && !!match.winner}
+        myTeamId={myTeamId}
+        onTeamClick={onTeamClick}
       />
 
       <div className="h-px bg-border mx-1 my-1" />
@@ -226,18 +228,23 @@ function MatchCard({
       <TeamRow
         team={match.team2}
         isWinner={match.winner?.id === match.team2?.id && !!match.winner}
+        myTeamId={myTeamId}
+        onTeamClick={onTeamClick}
       />
-    </motion.button>
+    </div>
   );
 }
 
-// ===== Строка клана =====
 function TeamRow({
   team,
   isWinner,
+  myTeamId,
+  onTeamClick,
 }: {
-  team: BracketMatch['team1'];
+  team: BracketTeam | null;
   isWinner: boolean;
+  myTeamId?: number | null;
+  onTeamClick?: (team: BracketTeam) => void;
 }) {
   if (!team) {
     return (
@@ -252,8 +259,17 @@ function TeamRow({
     );
   }
 
+  const isMine = myTeamId && team.id === myTeamId;
+
   return (
-    <div className="flex items-center gap-1.5">
+    <button
+      onClick={() => onTeamClick?.(team)}
+      className={`w-full flex items-center gap-1.5 rounded-md px-1 py-0.5 -mx-1 transition-all text-left ${
+        isMine
+          ? 'bg-orange/15 border border-orange/40'
+          : 'border border-transparent hover:bg-bg2'
+      }`}
+    >
       <div className="w-6 h-6 rounded-md bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0">
         {team.logo_url ? (
           <img src={team.logo_url} alt="" className="w-full h-full object-cover" />
@@ -268,11 +284,16 @@ function TeamRow({
       >
         {team.name || 'Клан'}
       </div>
+      {isMine && (
+        <span className="text-[8px] font-black bg-orange text-white rounded px-1 py-0.5 flex-shrink-0">
+          МОЯ
+        </span>
+      )}
       {isWinner && (
         <div className="w-3 h-3 rounded-full bg-orange flex items-center justify-center flex-shrink-0">
           <span className="text-white text-[7px] font-black">✓</span>
         </div>
       )}
-    </div>
+    </button>
   );
 }

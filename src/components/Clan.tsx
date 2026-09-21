@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, Crown, Shield, Search, X, Check, Send,
-  LogOut, Trash2, ArrowLeft, Trophy, UserPlus, MessageCircle,
+  LogOut, Trash2, ArrowLeft, Trophy, UserPlus, MessageCircle, Camera, Upload,
 } from 'lucide-react';
 import { supabase, type User } from '../supabase';
 import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
@@ -10,6 +10,7 @@ import {
   type Clan as ClanType, type ClanMember, type ClanMessage,
   getAllClans, getUserClan, createClan, joinClan, leaveClan,
   getClanMembers, getClanMessages, sendClanMessage, deleteClan,
+  updateClan,
 } from '../lib/clan';
 
 type Props = { user: User };
@@ -45,6 +46,7 @@ export default function Clan({ user }: Props) {
         clan={myClan.clan}
         myRole={myClan.role}
         onBack={load}
+        onClanUpdate={load}
       />
     );
   }
@@ -57,7 +59,6 @@ export default function Clan({ user }: Props) {
     return <CreateClan user={user} onBack={() => setView('main')} onCreated={load} />;
   }
 
-  // Главный экран: нет клана
   return (
     <div className="space-y-4">
       <div className="bg-card border border-border rounded-3xl p-8 text-center shadow-card">
@@ -156,9 +157,9 @@ function ClanList({ user, onBack, onJoined }: { user: User; onBack: () => void; 
               transition={{ delay: i * 0.03 }}
               className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 shadow-card"
             >
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center text-white font-black text-lg flex-shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center text-white font-black text-lg flex-shrink-0 overflow-hidden">
                 {c.logo_url ? (
-                  <img src={c.logo_url} alt="" className="w-full h-full rounded-2xl object-cover" />
+                  <img src={c.logo_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   c.tag.slice(0, 2)
                 )}
@@ -271,19 +272,22 @@ function CreateClan({ user, onBack, onCreated }: { user: User; onBack: () => voi
 
 // ===== ПРОСМОТР КЛАНА =====
 function ClanView({
-  user, clan, myRole, onBack,
+  user, clan, myRole, onBack, onClanUpdate,
 }: {
   user: User;
   clan: ClanType;
   myRole: string;
   onBack: () => void;
+  onClanUpdate: () => void;
 }) {
   const [tab, setTab] = useState<'info' | 'members' | 'chat'>('info');
   const [members, setMembers] = useState<ClanMember[]>([]);
   const [messages, setMessages] = useState<ClanMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const logoRef = useRef<HTMLInputElement>(null);
 
   const isLeader = myRole === 'leader';
   const isOfficer = myRole === 'officer' || isLeader;
@@ -340,21 +344,90 @@ function ClanView({
     onBack();
   };
 
+  // ===== Загрузка логотипа клана =====
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!isLeader && !isOfficer) {
+      hapticError();
+      alert('Только лидер или офицер могут менять логотип');
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      hapticError();
+      alert('Логотип максимум 3 МБ');
+      return;
+    }
+
+    haptic('medium');
+    setUploadingLogo(true);
+
+    const ext = file.name.split('.').pop() || 'png';
+    const path = `clans/${clan.id}_${Date.now()}.${ext}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('standoff')
+      .upload(path, file, { upsert: true, cacheControl: '3600' });
+
+    if (upErr) {
+      setUploadingLogo(false);
+      hapticError();
+      alert('Ошибка загрузки: ' + upErr.message);
+      return;
+    }
+
+    const { data } = supabase.storage.from('standoff').getPublicUrl(path);
+    const url = data.publicUrl + '?t=' + Date.now();
+
+    const { error: updErr } = await updateClan(clan.id, { logo_url: url });
+    setUploadingLogo(false);
+
+    if (updErr) {
+      hapticError();
+      alert(updErr.message);
+      return;
+    }
+
+    hapticSuccess();
+    onClanUpdate();
+  };
+
   return (
     <div className="space-y-4">
       {/* Шапка клана */}
       <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-card">
         <div className="h-24 bg-gradient-to-br from-orange to-orange2" />
         <div className="px-5 pb-5 -mt-10">
-          <div className="w-20 h-20 rounded-3xl bg-white border-4 border-white flex items-center justify-center overflow-hidden">
-            {clan.logo_url ? (
-              <img src={clan.logo_url} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-orange to-orange2 flex items-center justify-center text-white font-black text-2xl">
-                {clan.tag.slice(0, 2)}
-              </div>
+          <div className="relative inline-block">
+            <div className="w-20 h-20 rounded-3xl bg-white border-4 border-white flex items-center justify-center overflow-hidden">
+              {clan.logo_url ? (
+                <img src={clan.logo_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-orange to-orange2 flex items-center justify-center text-white font-black text-2xl">
+                  {clan.tag.slice(0, 2)}
+                </div>
+              )}
+            </div>
+            {(isLeader || isOfficer) && (
+              <>
+                <button
+                  onClick={() => logoRef.current?.click()}
+                  disabled={uploadingLogo}
+                  className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-orange text-white flex items-center justify-center shadow-orange border-2 border-white disabled:opacity-50"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  ref={logoRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
+              </>
             )}
           </div>
+
           <div className="mt-2">
             <div className="flex items-center gap-2">
               <span className="font-black text-xl text-black">{clan.name}</span>
@@ -362,6 +435,9 @@ function ClanView({
             </div>
             {clan.description && (
               <p className="text-muted text-xs mt-1">{clan.description}</p>
+            )}
+            {uploadingLogo && (
+              <p className="text-orange text-[10px] mt-1 font-bold">Загрузка логотипа...</p>
             )}
           </div>
 
