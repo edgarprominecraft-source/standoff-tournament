@@ -1,45 +1,61 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Music, VolumeX, Volume2 } from 'lucide-react';
+import { VolumeX, Volume2 } from 'lucide-react';
 
 const STORAGE_KEY = 'halloween_audio_enabled';
 
 export default function HalloweenAudio() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(true); // ON по умолчанию
   const [ready, setReady] = useState(false);
+  const [started, setStarted] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
+    // Первый заход → ON. Если пользователь ранее выключил → OFF.
+    const shouldPlay = saved === null ? true : saved === 'true';
+
     const audio = new Audio('/audio/halloween.mp3');
     audio.loop = true;
-    audio.volume = 0.15;
+    audio.volume = 0.18;
+    audio.muted = true; // стартуем muted — браузер разрешит autoplay
     audio.addEventListener('canplaythrough', () => setReady(true));
     audio.addEventListener('error', () => setReady(false));
     audioRef.current = audio;
 
-    // Автовоспроизведение при первом взаимодействии (требование браузеров)
-    if (saved === 'true') {
-      const tryPlay = () => {
-        audio.play().then(() => {
-          setEnabled(true);
-          document.removeEventListener('click', tryPlay);
-          document.removeEventListener('touchstart', tryPlay);
-        }).catch(() => {});
-      };
-      document.addEventListener('click', tryPlay, { once: true });
-      document.addEventListener('touchstart', tryPlay, { once: true });
-    }
+    // Пробуем запустить сразу (muted — браузер разрешает)
+    audio.play().catch(() => {});
+
+    setEnabled(shouldPlay);
+
+    // Первый тап пользователя — снимаем mute
+    const unlock = () => {
+      const a = audioRef.current;
+      if (!a) return;
+      a.muted = !shouldPlay;
+      if (shouldPlay) {
+        a.play().catch(() => {});
+      }
+      setStarted(true);
+      document.removeEventListener('click', unlock);
+      document.removeEventListener('touchstart', unlock);
+    };
+
+    document.addEventListener('click', unlock, { once: true });
+    document.addEventListener('touchstart', unlock, { once: true });
 
     return () => {
       audio.pause();
       audioRef.current = null;
+      document.removeEventListener('click', unlock);
+      document.removeEventListener('touchstart', unlock);
     };
   }, []);
 
   const toggle = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    audio.muted = false;
     if (enabled) {
       audio.pause();
       setEnabled(false);
