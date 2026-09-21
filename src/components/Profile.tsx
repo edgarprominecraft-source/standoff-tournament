@@ -310,6 +310,12 @@ export default function Profile({ user, setUser }: Props) {
       )}
 
       <AnimatePresence>
+        {showFriends && (
+          <FriendsModal userId={user.user_id} onClose={() => setShowFriends(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {showFullProfile && (
           <FullProfileModal
             user={user}

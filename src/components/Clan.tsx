@@ -1,8 +1,8 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, Crown, Shield, Search, X, Check, Send,
-  LogOut, Trash2, ArrowLeft, Trophy, UserPlus, MessageCircle, Camera,
+  LogOut, Trash2, ArrowLeft, Trophy, UserPlus, MessageCircle, Camera, Lock, Unlock, Inbox,
 } from 'lucide-react';
 import { supabase, type User } from '../supabase';
 import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
@@ -378,14 +378,18 @@ function ClanView({
                     className={`py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${
                       joinMode === mode ? 'bg-orange text-white shadow-orange' : 'bg-bg2 border border-border text-muted'
                     }`}>
-                    {mode === 'open' ? '🟢 Открыт' : mode === 'request' ? '🟡 Заявки' : '🔒 Закрыт'}
+                    <span className="flex items-center justify-center gap-1">
+                      {mode === 'open' && <><Unlock className="w-3 h-3" /> Открыт</>}
+                      {mode === 'request' && <><Inbox className="w-3 h-3" /> Заявки</>}
+                      {mode === 'invite' && <><Lock className="w-3 h-3" /> Закрыт</>}
+                    </span>
                   </button>
                 ))}
               </div>
               {applicationsCount > 0 && (
                 <button onClick={() => { haptic('light'); setShowApplications(true); }}
                   className="w-full mt-2 bg-orange/10 border border-orange/40 text-orange font-bold rounded-xl py-2.5 text-xs flex items-center justify-center gap-2">
-                  📩 Заявки
+                  <span className="flex items-center gap-1.5"><Inbox className="w-3.5 h-3.5" /> Заявки</span>
                   <span className="bg-orange text-white rounded-full min-w-[20px] h-5 px-1.5 text-[10px] font-black flex items-center justify-center">
                     {applicationsCount}
                   </span>
