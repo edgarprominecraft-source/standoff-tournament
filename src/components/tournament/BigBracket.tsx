@@ -14,10 +14,11 @@ type Props = {
 function getRoundLabel(rIdx: number, totalRounds: number): string {
   const fromEnd = totalRounds - rIdx - 1;
   if (fromEnd === 0) return 'Финал';
-  if (fromEnd === 1) return '1/2';
-  if (fromEnd === 2) return '1/4';
-  if (fromEnd === 3) return '1/8';
-  if (fromEnd === 4) return '1/16';
+  if (fromEnd === 1) return 'Полуфинал';
+  if (fromEnd === 2) return 'Четвертьфинал';
+  if (fromEnd === 3) return '1/8 финала';
+  if (fromEnd === 4) return '1/16 финала';
+  if (fromEnd === 5) return '1/32 финала';
   return roundName(rIdx + 1, totalRounds);
 }
 
@@ -56,9 +57,9 @@ export default function BigBracket({
 
   return (
     <div className="bg-white rounded-3xl border border-border p-4 shadow-card overflow-x-auto">
-      <div className="flex items-stretch min-w-max gap-2">
+      <div className="flex items-stretch min-w-max gap-4">
         {/* ЛЕВАЯ СТОРОНА */}
-        <div className="flex gap-2">
+        <div className="flex gap-5">
           {leftRounds.map((r) => (
             <BracketColumn
               key={`L-${r.rIdx}`}
@@ -86,18 +87,10 @@ export default function BigBracket({
             <MatchCard
               match={finalMatch}
               label="Финал"
-              onClick={
-                finalMatch?.matchId && onMatchClick
-                  ? () => onMatchClick(finalMatch)
-                  : undefined
-              }
+              onClick={finalMatch?.matchId && onMatchClick ? () => onMatchClick(finalMatch) : undefined}
               onTeamClick={onTeamClick}
               myTeamId={myTeamId}
-              scheduledTime={
-                finalMatch?.matchId
-                  ? matchTimeMap[finalMatch.matchId] ?? null
-                  : null
-              }
+              scheduledTime={finalMatch?.matchId ? matchTimeMap[finalMatch.matchId] ?? null : null}
             />
           </div>
 
@@ -123,7 +116,7 @@ export default function BigBracket({
         </div>
 
         {/* ПРАВАЯ СТОРОНА */}
-        <div className="flex gap-2">
+        <div className="flex gap-5">
           {rightRoundsOrdered.map((r) => (
             <BracketColumn
               key={`R-${r.rIdx}`}
@@ -136,6 +129,17 @@ export default function BigBracket({
               matchTimeMap={matchTimeMap}
             />
           ))}
+        </div>
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted font-semibold">
+        <div className="flex items-center gap-1.5">
+          <Swords className="w-3 h-3 text-orange" />
+          Формат: 5×5 · Single Elimination
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Clock className="w-3 h-3 text-orange" />
+          Игровое время: 17:00 – 22:00
         </div>
       </div>
     </div>
@@ -170,28 +174,63 @@ function BracketColumn({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col justify-around gap-2">
-        {matches.map((m, mIdx) => (
-          <div key={mIdx} className="relative">
-            <MatchCard
-              match={m}
-              label={`M${mIdx + 1}`}
-              onClick={m.matchId && onMatchClick ? () => onMatchClick(m) : undefined}
-              onTeamClick={onTeamClick}
-              myTeamId={myTeamId}
-              scheduledTime={m.matchId ? matchTimeMap[m.matchId] ?? null : null}
-            />
-            <div
-              className="absolute bg-orange/40"
-              style={{
-                [side === 'left' ? 'right' : 'left']: -8,
-                top: '50%',
-                width: 8,
-                height: 2,
-              }}
-            />
-          </div>
-        ))}
+      <div className="flex-1 flex flex-col justify-around gap-4 relative">
+        {matches.map((m, mIdx) => {
+          const isTop = mIdx % 2 === 0;
+          const hasPairBelow = mIdx % 2 === 0 && mIdx + 1 < matches.length;
+
+          return (
+            <div key={mIdx} className="relative">
+              <MatchCard
+                match={m}
+                label={`M${mIdx + 1}`}
+                onClick={m.matchId && onMatchClick ? () => onMatchClick(m) : undefined}
+                onTeamClick={onTeamClick}
+                myTeamId={myTeamId}
+                scheduledTime={m.matchId ? matchTimeMap[m.matchId] ?? null : null}
+              />
+
+              {/* Верхняя половина пары — вертикальная линия вниз */}
+              {isTop && hasPairBelow && (
+                <div
+                  className="absolute bg-orange/40"
+                  style={{
+                    [side === 'left' ? 'right' : 'left']: -20,
+                    top: '50%',
+                    height: 'calc(100% + 16px)',
+                    width: 2,
+                  }}
+                />
+              )}
+
+              {/* Нижняя половина — горизонталь к соединителю */}
+              {!isTop && (
+                <div
+                  className="absolute bg-orange/40"
+                  style={{
+                    [side === 'left' ? 'right' : 'left']: -20,
+                    top: '50%',
+                    width: 12,
+                    height: 2,
+                  }}
+                />
+              )}
+
+              {/* Отвод в следующий раунд — на среднем узле пары */}
+              {isTop && hasPairBelow && (
+                <div
+                  className="absolute bg-orange/40"
+                  style={{
+                    [side === 'left' ? 'right' : 'left']: -32,
+                    top: 'calc(50% + 50% + 8px)',
+                    width: 12,
+                    height: 2,
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -264,7 +303,6 @@ function MatchCard({
         onTeamClick={onTeamClick}
       />
 
-      {/* Время матча */}
       {scheduledStr && hasBothTeams && (
         <div className="mt-2 pt-2 border-t border-border/60 flex items-center justify-center gap-1 text-[9px] text-orange font-bold">
           <Clock className="w-2.5 h-2.5" />
