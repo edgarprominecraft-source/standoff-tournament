@@ -356,7 +356,7 @@ export async function getClanApplications(clanId: number): Promise<ClanApplicati
   const userIds = data.map((a: any) => a.user_id);
   const { data: users } = await supabase
     .from('users')
-    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id')
+    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, last_seen')
     .in('user_id', userIds);
 
   const map = new Map<number, any>();

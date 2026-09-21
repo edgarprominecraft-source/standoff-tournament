@@ -251,6 +251,47 @@ export default function App() {
     );
   }
 
+  // ===== ПРОВЕРКА USERNAME =====
+  if (user && !user.username) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-6">
+            <img src="/logo.png" alt="Standoff Cup" className="w-24 h-24 mx-auto mb-3" />
+            <h1 className="text-black font-black text-2xl">STANDOFF CUP</h1>
+            <p className="text-muted text-xs mt-1 uppercase tracking-[0.3em]">Укажи username</p>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-3 shadow-card">
+            <div className="bg-orange/10 border border-orange/30 rounded-xl p-3 text-xs text-orange leading-relaxed">
+              У тебя в Telegram не установлен username. Введи его здесь — он нужен для профиля и поиска друзей.
+            </div>
+            <input
+              id="username-input"
+              placeholder="@username"
+              maxLength={32}
+              className="w-full bg-bg2 border border-border rounded-xl px-4 py-3 text-black text-sm focus:border-orange"
+            />
+            <button
+              onClick={async () => {
+                const el = document.getElementById('username-input') as HTMLInputElement;
+                const raw = (el?.value || '').trim().replace(/^@/, '');
+                if (raw.length < 3) { alert('Минимум 3 символа'); return; }
+                await supabase.from('users').update({ username: raw }).eq('user_id', user.user_id);
+                setUser({ ...user, username: raw });
+              }}
+              className="w-full bg-orange text-white font-bold rounded-xl py-3 text-sm shadow-orange"
+            >
+              Сохранить
+            </button>
+            <div className="text-muted text-[10px] text-center leading-relaxed">
+              Можно поменять позже в настройках. Он будет виден как @{'{'}username{'}'}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ===== ОСНОВНОЕ ПРИЛОЖЕНИЕ =====
   return (
     <div className="min-h-screen bg-transparent relative">
