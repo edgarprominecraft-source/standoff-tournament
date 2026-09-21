@@ -10,6 +10,7 @@ import { type User, supabase } from '../supabase';
 import { buildBracket, type BracketMatch, type BracketTeam } from '../lib/bracket';
 import { haptic, getTelegramUser } from '../lib/telegram';
 import BigBracket from './tournament/BigBracket';
+import EmptyBracketPreview from './tournament/EmptyBracketPreview';
 import TeamInfoModal from './tournament/TeamInfoModal';
 import SponsorModal, { type Sponsor } from './tournament/SponsorModal';
 import Lobby from './tournament/Lobby';
@@ -204,7 +205,7 @@ export default function OrganizerPage({ user }: Props) {
                     t.status === 'waiting'
                       ? 'border-orange/40 text-orange bg-orange/10'
                       : t.status === 'active'
-                      ? 'border-success/40 text-success bg-success/10'
+                      ? 'border-green-500/40 text-green-600 bg-green-500/10'
                       : 'border-border text-muted'
                   }`}>
                     {t.status === 'waiting' ? 'Набор' : t.status === 'active' ? 'Идёт' : 'Завершён'}
@@ -220,7 +221,7 @@ export default function OrganizerPage({ user }: Props) {
                   </button>
                   <button
                     onClick={() => handleJoin(t)}
-                    disabled={t.status !== 'waiting'}
+                    disabled={t.status === 'finished'}
                     className="flex-1 bg-orange text-white font-bold rounded-xl py-2.5 text-xs disabled:opacity-40 shadow-orange hover:bg-orangeDark transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
@@ -273,7 +274,7 @@ export default function OrganizerPage({ user }: Props) {
         <div className="bg-card border border-border rounded-2xl p-8 text-center shadow-card">
           <Building2 className="w-12 h-12 text-muted mx-auto mb-3" strokeWidth={1.5} />
           <div className="text-black font-bold mb-1">Организаторов пока нет</div>
-          <p className="text-muted text-xs">Создай в боте: /admin → 🏢 Организаторы</p>
+          <p className="text-muted text-xs">Создай в админ-панели на сайте</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -339,9 +340,19 @@ function TournamentBracketView({
   const [matchCount, setMatchCount] = useState(0);
   const [selectedTeam, setSelectedTeam] = useState<BracketTeam | null>(null);
   const [myTeamId, setMyTeamId] = useState<number | null>(null);
+  const [myClanId, setMyClanId] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
+      // Свежий clan_id из БД
+      const { data: userData } = await supabase
+        .from('users')
+        .select('clan_id')
+        .eq('user_id', user.user_id)
+        .maybeSingle();
+      const cid = (userData as any)?.clan_id ?? null;
+      setMyClanId(cid);
+
       const { data: rawTeams } = await supabase
         .from('teams')
         .select('*')
@@ -360,13 +371,11 @@ function TournamentBracketView({
         return;
       }
 
-      // Определяем мою команду по clan_id
-      if (user.clan_id) {
-        const mine = (rawTeams as any[]).find((t) => t.clan_id === user.clan_id);
+      if (cid) {
+        const mine = (rawTeams as any[]).find((t) => t.clan_id === cid);
         setMyTeamId(mine?.id || null);
       }
 
-      // Сортируем команды по id — стабильный порядок
       const sortedTeams = [...(rawTeams as any[])].sort((a, b) => a.id - b.id);
 
       const teams: BracketTeam[] = sortedTeams.map((t) => ({
@@ -374,12 +383,12 @@ function TournamentBracketView({
         name: t.clan_name || t.team_name || 'Клан',
         captain_photo: null,
         logo_url: t.clan_logo_url || t.logo_url || null,
+        clan_id: t.clan_id,
         players: [],
         side: t.side,
       }));
 
       const matches = rawMatches || [];
-      // Если матчи уже созданы — не перемешивать
       const built = buildBracket(teams, matches.length === 0);
 
       matches.forEach((m: any) => {
@@ -408,7 +417,7 @@ function TournamentBracketView({
       setRounds(built);
       setLoading(false);
     })();
-  }, [tournament.id, user.clan_id]);
+  }, [tournament.id, user.user_id]);
 
   return (
     <div className="space-y-4">
@@ -432,16 +441,16 @@ function TournamentBracketView({
           <div className="w-8 h-8 border-3 border-orange/20 border-t-orange rounded-full animate-spin" />
         </div>
       ) : matchCount === 0 ? (
-        <div className="bg-card border border-border rounded-3xl p-8 text-center">
-          <Trophy className="w-12 h-12 text-muted mx-auto mb-3" strokeWidth={1.5} />
-          <div className="text-black font-bold mb-2">Сетка ещё не создана</div>
-          <p className="text-muted text-xs leading-relaxed mb-4">
-            Матчи появятся когда наберётся нужное количество кланов
-          </p>
-          {tournament.status === 'waiting' && (
+        <div className="space-y-3">
+          <EmptyBracketPreview
+            tournamentId={tournament.id}
+            maxTeams={tournament.max_teams}
+            myClanId={myClanId}
+          />
+          {tournament.status !== 'finished' && (
             <button
               onClick={onJoin}
-              className="bg-orange text-white font-black rounded-2xl px-6 py-3 text-sm shadow-orange hover:bg-orangeDark transition-colors inline-flex items-center gap-2"
+              className="w-full bg-orange text-white font-black rounded-2xl py-4 text-sm shadow-orange hover:bg-orangeDark transition-colors flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
               Участвовать

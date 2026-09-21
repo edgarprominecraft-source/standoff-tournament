@@ -3,6 +3,7 @@ export type BracketTeam = {
   name: string;
   captain_photo: string | null;
   logo_url: string | null;
+  clan_id?: number | null;
   players: {
     id: number;
     name: string;
@@ -21,55 +22,30 @@ export type BracketMatch = {
   matchId?: number;
 };
 
-/**
- * Строит сетку.
- * @param teams — команды
- * @param shuffle — перемешивать ли (false если матчи уже в БД, чтобы порядок сохранялся)
- */
 export function buildBracket(teams: BracketTeam[], shuffle: boolean = true): BracketMatch[][] {
   if (teams.length === 0) return [];
-
   const size = Math.max(2, Math.pow(2, Math.ceil(Math.log2(teams.length))));
-
-  const ordered = shuffle
-    ? [...teams].sort(() => Math.random() - 0.5)
-    : [...teams];
-
+  const ordered = shuffle ? [...teams].sort(() => Math.random() - 0.5) : [...teams];
   const padded: (BracketTeam | null)[] = [...ordered];
   while (padded.length < size) padded.push(null);
-
   const rounds: BracketMatch[][] = [];
   const firstRound: BracketMatch[] = [];
   for (let i = 0; i < padded.length; i += 2) {
-    firstRound.push({
-      round: 1,
-      position: i / 2,
-      team1: padded[i],
-      team2: padded[i + 1],
-      winner: null,
-    });
+    firstRound.push({ round: 1, position: i / 2, team1: padded[i], team2: padded[i + 1], winner: null });
   }
   rounds.push(firstRound);
-
   let prevCount = firstRound.length;
   let roundNum = 2;
   while (prevCount > 1) {
     const nextCount = Math.floor(prevCount / 2);
     const round: BracketMatch[] = [];
     for (let i = 0; i < nextCount; i++) {
-      round.push({
-        round: roundNum,
-        position: i,
-        team1: null,
-        team2: null,
-        winner: null,
-      });
+      round.push({ round: roundNum, position: i, team1: null, team2: null, winner: null });
     }
     rounds.push(round);
     prevCount = nextCount;
     roundNum++;
   }
-
   return rounds;
 }
 

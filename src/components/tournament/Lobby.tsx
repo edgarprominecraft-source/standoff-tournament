@@ -22,95 +22,52 @@ type MyClan = {
 
 const MIN_CLAN_MEMBERS = 5;
 
-// ===== ТЕКСТ РЕГЛАМЕНТА (присылает организатор) =====
 const RULES_TEXT = `РЕГЛАМЕНТ TOURNAMENT (STANDOFF 2)
 
 1. ОБЩИЕ ПОЛОЖЕНИЯ
 
-1.1. Турнир проводится при поддержке и под контролем организаторов Seven Tournament.
-
+1.1. Турнир проводится при поддержке и под контролем организаторов.
 1.2. К участию допускаются игроки любой возрастной категории.
-
-1.3. Формат турнира, стадии, расписание, призовой фонд и другая информация публикуются в анонсе конкретного турнира.
-
+1.3. Формат турнира, стадии, расписание, призовой фонд публикуются в анонсе конкретного турнира.
 1.4. Регистрация на турнир означает полное согласие команды с настоящим регламентом.
-
-1.5. Все спорные ситуации, не предусмотренные данным регламентом, решаются администрацией турнира. Решение администрации является окончательным.
-
-1.6. Все матчи проводятся на последней актуальной версии игры Standoff 2. В случае выхода обновлений администрация вправе внести изменения в регламент.
-
-1.7. Запрещается использование:
-— ПК и эмуляторов;
-— стороннего программного обеспечения;
-— читов, макросов, триггеров;
-— геймпадов, джойстиков и других устройств, дающих преимущество.
-
-1.8. Время проведения матча согласовывается капитанами обеих команд. При невозможности договориться окончательное время назначает администрация.
-
-1.9. При необходимости участники обязаны быть подписаны на информационные ресурсы и спонсоров турнира.
-
+1.5. Все спорные ситуации решаются администрацией турнира.
+1.6. Все матчи проводятся на последней актуальной версии игры Standoff 2.
+1.7. Запрещается: ПК и эмуляторы, стороннее ПО, читы, макросы, триггеры, геймпады.
+1.8. Время матча согласовывается капитанами. При разногласиях — администрация.
+1.9. Участники обязаны быть подписаны на информационные ресурсы и спонсоров.
 1.10. Использование Rog-прицела разрешено.
 
 2. РЕГИСТРАЦИЯ
 
-2.1. Регистрация осуществляется только через организаторов турнира.
-
-2.2. При регистрации необходимо указать:
-— название команды;
-— основной состав (5 игроков);
-— запасных игроков (до 3 человек);
-— игровые ID всех участников.
-
-2.3. Игроки могут не состоять под тегом команды в игре, если они указаны в официальной заявке.
-
-2.4. Замена игроков во время турнира возможна только с разрешения администрации.
+2.1. Регистрация через организаторов турнира.
+2.2. При регистрации: название команды, основной состав (5 игроков), запасные (до 3), игровые ID.
+2.3. Замена игроков во время турнира — только с разрешения администрации.
 
 3. ПРОВЕДЕНИЕ МАТЧЕЙ
 
-3.1. Матчи проводятся в форматах BO1, BO2, BO3 или BO5 (в зависимости от стадии турнира).
-
-3.2. Игровые карты: Sandstone, Rust, Province, Breeze, Prison, Hanami, Dune.
-
-3.3. Настройки лобби:
-— режим — 5×5;
-— длительность раунда — 2:05;
-— количество раундов — 25;
-— стартовые деньги — $800;
-— максимальная сумма денег — $16 000.
+3.1. Форматы: BO1, BO2, BO3, BO5.
+3.2. Карты: Sandstone, Rust, Province, Breeze, Prison, Hanami, Dune.
+3.3. Лобби: 5×5, раунд 2:05, 25 раундов, старт $800, макс $16 000.
 
 4. ТЕХНИЧЕСКИЕ ТРЕБОВАНИЯ
 
-4.1. По запросу администрации каждый игрок обязан предоставить:
-— СС (скриншот экрана в игре);
-— МС (скриншот экрана во вкладках).
-
-4.2. После каждого переподключения или перезахода в матч игрок обязан повторно предоставить СС и МС по требованию администрации.
-
-4.3. Отказ предоставить материалы в установленный срок приравнивается к техническому поражению или дисквалификации.
+4.1. По запросу администрации — СС и МС.
+4.2. После перезахода — повторно СС и МС.
+4.3. Отказ = техническое поражение или дисквалификация.
 
 5. РЕХОСТ
 
-5.1. Рехост возможен в следующих случаях:
-— вылет одного или нескольких игроков;
-— критический баг игры;
-— технические неполадки;
-— решение администрации.
+5.1. Рехост возможен: вылет, критический баг, технические неполадки, решение администрации.
 
 6. ТРЕБОВАНИЯ К СОЕДИНЕНИЮ
 
-6.1. Максимально допустимый пинг игрока — 180 ms.
-
-6.2. При превышении допустимого пинга в течении 5-ти раундов администрация вправе перенести матч, провести рехост или вынести иное решение.
+6.1. Максимальный пинг — 180 ms.
+6.2. При превышении 5 раундов — перенос, рехост или иное решение.
 
 7. НАРУШЕНИЯ
 
-За нарушение настоящего регламента администрация может применить следующие санкции:
-— предупреждение;
-— снятие раундов;
-— техническое поражение;
-— дисквалификация команды или игрока.
-
-Администрация оставляет за собой право изменить меру наказания в зависимости от тяжести нарушения.`;
+Санкции: предупреждение, снятие раундов, техническое поражение, дисквалификация.
+Администрация вправе изменить меру наказания.`;
 
 export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) {
   const [teams, setTeams] = useState<BracketTeam[]>([]);
@@ -118,11 +75,13 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const [joining, setJoining] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [myClan, setMyClan] = useState<MyClan | null>(null);
+  const [myClanId, setMyClanId] = useState<number | null>(null);
   const [clanError, setClanError] = useState<string | null>(null);
+  const [alreadyJoined, setAlreadyJoined] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [rulesTimer, setRulesTimer] = useState(10);
-  const [rulesAccepted, setRulesAccepted] = useState(false);
 
+  // ===== Загрузка команд =====
   const loadTeams = async () => {
     const { data: rawTeams } = await supabase
       .from('teams')
@@ -141,26 +100,43 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       name: t.clan_name || t.team_name || 'Клан',
       captain_photo: null,
       logo_url: t.clan_logo_url || t.logo_url || null,
+      clan_id: t.clan_id,
       players: [],
       side: t.side,
     }));
 
     setTeams(enriched);
+
+    // Проверяем есть ли уже команда моего клана
+    if (myClanId) {
+      setAlreadyJoined(enriched.some((t) => t.clan_id === myClanId));
+    }
+
     if (enriched.length >= maxTeams) onReady();
     setLoading(false);
   };
 
+  // ===== Загрузка моего клана (свежий clan_id из БД) =====
   const loadMyClan = async () => {
-    if (!user.clan_id) {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('clan_id')
+      .eq('user_id', user.user_id)
+      .maybeSingle();
+
+    const clanId = (userData as any)?.clan_id ?? null;
+    setMyClanId(clanId);
+
+    if (!clanId) {
       setMyClan(null);
-      setClanError('Ты не в клане. Вступи в клан или создай свой, чтобы участвовать.');
+      setClanError('Ты не в клане. Вступи в клан или создай свой.');
       return;
     }
 
     const { data: clan } = await supabase
       .from('clans')
       .select('id, name, tag, logo_url')
-      .eq('id', user.clan_id)
+      .eq('id', clanId)
       .maybeSingle();
 
     if (!clan) {
@@ -203,9 +179,9 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [tournamentId, user.clan_id]);
+  }, [tournamentId, user.user_id, myClanId]);
 
-  // ===== Таймер регламента =====
+  // Таймер регламента
   useEffect(() => {
     if (!showRules) return;
     setRulesTimer(10);
@@ -213,7 +189,9 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       setRulesTimer((s) => {
         if (s <= 1) {
           clearInterval(t);
-          handleDeclineRules();
+          setShowRules(false);
+          hapticError();
+          setMsg('Регламент отклонён. Для участия нужно принять.');
           return 0;
         }
         return s - 1;
@@ -222,14 +200,12 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     return () => clearInterval(t);
   }, [showRules]);
 
-  const myTeam = teams.find((t) => t.name === myClan?.name);
-  const alreadyJoined = !!myTeam;
   const full = teams.length >= maxTeams;
 
   const openRules = () => {
     if (!myClan) { hapticError(); setMsg('Сначала вступи в клан'); return; }
     if (clanError) { hapticError(); setMsg(clanError); return; }
-    if (alreadyJoined) { hapticError(); setMsg('Твой клан уже участвует'); return; }
+    if (alreadyJoined) { hapticError(); setMsg('Твой клан уже участвует в этом турнире'); return; }
     if (full) { hapticError(); setMsg('Все места заняты'); return; }
     haptic('medium');
     setShowRules(true);
@@ -262,7 +238,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       } else {
         hapticSuccess();
         setMsg(`Клан "${myClan!.name}" вступил в турнир!`);
-        setRulesAccepted(true);
+        setAlreadyJoined(true);
       }
     } catch (e: any) {
       hapticError();
@@ -271,28 +247,17 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     setJoining(false);
   };
 
-  const handleDeclineRules = () => {
-    setShowRules(false);
-    hapticError();
-    setMsg('Регламент отклонён. Для участия нужно принять.');
-  };
-
   const leaveTournament = async () => {
+    if (!myClan) return;
+    const myTeam = teams.find((t) => t.clan_id === myClan.id);
     if (!myTeam) return;
+
     haptic('medium');
-
-    const { data: teamData } = await supabase
-      .from('teams')
-      .select('*')
-      .eq('id', myTeam.id)
-      .maybeSingle();
-
-    if (!teamData) return;
 
     const { data: member } = await supabase
       .from('clan_members')
       .select('role')
-      .eq('clan_id', (teamData as any).clan_id)
+      .eq('clan_id', myClan.id)
       .eq('user_id', user.user_id)
       .maybeSingle();
 
@@ -305,6 +270,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
     await supabase.from('teams').delete().eq('id', myTeam.id);
     hapticSuccess();
     setMsg('Клан вышел из турнира');
+    setAlreadyJoined(false);
   };
 
   if (loading) {
@@ -318,7 +284,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
 
   return (
     <div className="space-y-4">
-      {/* Шапка */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -364,12 +329,8 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
           </div>
           <div className="text-black font-black text-base mb-1">Ты не в клане</div>
           <p className="text-muted text-xs leading-relaxed mb-3">
-            Чтобы участвовать в турнире — вступи в клан или создай свой.
-            Минимум {MIN_CLAN_MEMBERS} игроков.
+            Чтобы участвовать — вступи в клан или создай свой. Минимум {MIN_CLAN_MEMBERS} игроков.
           </p>
-          <div className="text-muted text-[10px]">
-            Перейди во вкладку «КЛАН» внизу
-          </div>
         </div>
       ) : (
         <motion.div
@@ -382,15 +343,11 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
               {myClan.logo_url ? (
                 <img src={myClan.logo_url} alt="" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-white font-black text-lg">
-                  {myClan.tag.slice(0, 2)}
-                </span>
+                <span className="text-white font-black text-lg">{myClan.tag.slice(0, 2)}</span>
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-black font-black text-base truncate">
-                {myClan.name}
-              </div>
+              <div className="text-black font-black text-base truncate">{myClan.name}</div>
               <div className="text-orange font-bold text-xs">[{myClan.tag}]</div>
               <div className="text-muted text-[10px] mt-0.5 flex items-center gap-1">
                 <Users className="w-3 h-3" />
@@ -453,9 +410,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
                 {t.logo_url ? (
                   <img src={t.logo_url} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-white font-black text-xs">
-                    {t.name.charAt(0).toUpperCase()}
-                  </span>
+                  <span className="text-white font-black text-xs">{t.name.charAt(0).toUpperCase()}</span>
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -473,7 +428,6 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
         )}
       </div>
 
-      {/* ===== МОДАЛКА РЕГЛАМЕНТА ===== */}
       <AnimatePresence>
         {showRules && (
           <motion.div
@@ -514,7 +468,11 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
                   Принять и участвовать
                 </button>
                 <button
-                  onClick={handleDeclineRules}
+                  onClick={() => {
+                    setShowRules(false);
+                    hapticError();
+                    setMsg('Регламент отклонён');
+                  }}
                   className="w-full bg-bg2 border border-border text-muted font-bold rounded-2xl py-3 text-xs"
                 >
                   Отменить
