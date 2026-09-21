@@ -236,3 +236,115 @@ export async function sendClanMessage(clanId: number, userId: number, text: stri
     text: text.slice(0, 500),
   });
 }
+
+// ===== РЕЖИМЫ КЛАНА =====
+export type JoinMode = 'open' | 'request' | 'invite';
+
+export async function setClanJoinMode(clanId: number, mode: JoinMode) {
+  const { error } = await supabase
+    .from('clans')
+    .update({
+      join_mode: mode,
+      is_open: mode === 'open',
+    })
+    .eq('id', clanId);
+  return { error: error?.message || null };
+}
+
+// ===== ЗАЯВКИ В КЛАН =====
+export type ClanApplication = {
+  id: number;
+  clan_id: number;
+  user_id: number;
+  message: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  user?: {
+    user_id: number;
+    nickname: string | null;
+    first_name: string | null;
+    avatar_url: string | null;
+    photo_url: string | null;
+    standoff_id: string | null;
+  };
+};
+
+export async function requestJoinClan(
+  userId: number,
+  clanId: number,
+  message: string
+): Promise<{ ok: boolean; error?: string }> {
+  const existing = await getUserClan(userId);
+  if (existing) return { ok: false, error: 'Ты уже в клане' };
+
+  // Проверка: уже есть заявка?
+  const { data: existingApp } = await supabase
+    .from('clan_applications')
+    .select('id, status')
+    .eq('user_id', userId)
+    .eq('clan_id', clanId)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (existingApp) return { ok: false, error: 'Заявка уже отправлена' };
+
+  const { error } = await supabase.from('clan_applications').insert({
+    clan_id: clanId,
+    user_id: userId,
+    message: message.slice(0, 300) || null,
+    status: 'pending',
+  });
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function getClanApplications(clanId: number): Promise<ClanApplication[]> {
+  const { data } = await supabase
+    .from('clan_applications')
+    .select('*')
+    .eq('clan_id', clanId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+
+  if (!data || data.length === 0) return [];
+
+  const userIds = data.map((a: any) => a.user_id);
+  const { data: users } = await supabase
+    .from('users')
+    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id')
+    .in('user_id', userIds);
+
+  const map = new Map<number, any>();
+  (users ?? []).forEach((u) => map.set(u.user_id, u));
+
+  return data.map((a: any) => ({
+    ...a,
+    user: map.get(a.user_id),
+  }));
+}
+
+export async function approveApplication(appId: number, userId: number, clanId: number) {
+  // 1. Обновляем статус заявки
+  await supabase
+    .from('clan_applications')
+    .update({ status: 'approved' })
+    .eq('id', appId);
+
+  // 2. Добавляем в клан
+  await supabase.from('clan_members').insert({
+    clan_id: clanId,
+    user_id: userId,
+    role: 'member',
+  });
+
+  // 3. Обновляем users.clan_id
+  await supabase.from('users').update({ clan_id: clanId }).eq('user_id', userId);
+}
+
+export async function rejectApplication(appId: number) {
+  await supabase
+    .from('clan_applications')
+    .update({ status: 'rejected' })
+    .eq('id', appId);
+}

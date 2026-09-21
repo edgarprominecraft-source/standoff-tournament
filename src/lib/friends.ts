@@ -10,8 +10,20 @@ export type FriendUser = {
   nickname_color: string | null;
   role: string | null;
   rank: string | null;
+  last_seen?: string | null;
   is_online?: boolean;
 };
+
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+
+function computeOnline(lastSeen: string | null | undefined): boolean {
+  if (!lastSeen) return false;
+  try {
+    return Date.now() - new Date(lastSeen).getTime() < ONLINE_THRESHOLD_MS;
+  } catch {
+    return false;
+  }
+}
 
 export async function getFriends(userId: number): Promise<FriendUser[]> {
   const { data: rows } = await supabase
@@ -24,10 +36,13 @@ export async function getFriends(userId: number): Promise<FriendUser[]> {
   const ids = rows.map((r: any) => r.friend_id);
   const { data: users } = await supabase
     .from('users')
-    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, nickname_color, role, rank')
+    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, nickname_color, role, rank, last_seen')
     .in('user_id', ids);
 
-  return (users as FriendUser[]) || [];
+  return ((users || []) as FriendUser[]).map((u) => ({
+    ...u,
+    is_online: computeOnline(u.last_seen),
+  }));
 }
 
 export async function addFriend(userId: number, friendId: number) {
@@ -36,7 +51,6 @@ export async function addFriend(userId: number, friendId: number) {
     .insert({ user_id: userId, friend_id: friendId });
   if (error) return { error: error.message };
 
-  // Взаимно
   await supabase
     .from('friends')
     .insert({ user_id: friendId, friend_id: userId });
@@ -48,16 +62,26 @@ export async function removeFriend(userId: number, friendId: number) {
   await supabase.from('friends').delete().eq('user_id', friendId).eq('friend_id', userId);
 }
 
+export async function isFriend(userId: number, otherId: number): Promise<boolean> {
+  const { data } = await supabase
+    .from('friends')
+    .select('user_id')
+    .eq('user_id', userId)
+    .eq('friend_id', otherId)
+    .maybeSingle();
+  return !!data;
+}
+
 export async function searchUserById(userId: number): Promise<FriendUser | null> {
   const { data } = await supabase
     .from('users')
-    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, nickname_color, role, rank')
+    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, nickname_color, role, rank, last_seen')
     .eq('user_id', userId)
     .maybeSingle();
-  return (data as FriendUser) || null;
+  if (!data) return null;
+  return { ...(data as FriendUser), is_online: computeOnline((data as any).last_seen) };
 }
 
-// ===== ЛС =====
 export type DM = {
   id: number;
   from_user_id: number;
@@ -106,7 +130,6 @@ export async function sendDM(fromUserId: number, toUserId: number, text: string)
   });
 }
 
-// ===== Кто мне писал (список диалогов) =====
 export async function getDMChats(userId: number): Promise<{ user: FriendUser; last: string; count: number }[]> {
   const { data } = await supabase
     .from('direct_messages')
@@ -132,11 +155,11 @@ export async function getDMChats(userId: number): Promise<{ user: FriendUser; la
 
   const { data: users } = await supabase
     .from('users')
-    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, nickname_color, role, rank')
+    .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, nickname_color, role, rank, last_seen')
     .in('user_id', otherIds);
 
   return (users || []).map((u: any) => ({
-    user: u as FriendUser,
+    user: { ...u, is_online: computeOnline(u.last_seen) } as FriendUser,
     last: map.get(u.user_id)?.last || '',
     count: map.get(u.user_id)?.count || 0,
   }));
