@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, LogOut, Check, Hourglass, Crown, X, Shield, AlertTriangle, FileText } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
@@ -80,6 +80,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
   const [clanError, setClanError] = useState<string | null>(null);
   const [alreadyJoined, setAlreadyJoined] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const bracketCreating = useRef(false);
   const [rulesTimer, setRulesTimer] = useState(10);
 
   // ===== Загрузка команд =====
@@ -113,7 +114,8 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       setAlreadyJoined(enriched.some((t) => t.clan_id === myClanId));
     }
 
-    if (enriched.length >= maxTeams) {
+    if (enriched.length >= maxTeams && !bracketCreating.current) {
+      bracketCreating.current = true;
       const res = await createBracketMatches(tournamentId);
       if (res.ok) {
         console.log('[bracket] created matches:', res.created);
@@ -121,6 +123,7 @@ export default function Lobby({ tournamentId, maxTeams, user, onReady }: Props) 
       } else {
         console.warn('[bracket] failed:', res.error);
       }
+      setTimeout(() => { bracketCreating.current = false; }, 10000);
     }
     setLoading(false);
   };
