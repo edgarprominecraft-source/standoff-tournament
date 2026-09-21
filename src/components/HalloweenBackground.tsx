@@ -232,12 +232,99 @@ export default function HalloweenBackground() {
 
       {/* ===== Анимации ===== */}
       <style>{`
+        @keyframes spiderSwing {
+          0%, 100% { transform: translateY(0) rotate(-2deg) }
+          50% { transform: translateY(6px) rotate(2deg) }
+        }
+        @keyframes pumpkinGlow {
+          0%, 100% { filter: drop-shadow(0 0 6px rgba(255,140,40,0.7)); transform: scale(1) }
+          50% { filter: drop-shadow(0 0 14px rgba(255,140,40,1)); transform: scale(1.05) }
+        }
         @keyframes fogFloat {
           0% { transform: translateX(-8%) scale(1) }
           100% { transform: translateX(8%) scale(1.15) }
         }
         @keyframes batFlyL {
-          0% { transform: translateX(0) translateY(0) scale(0.85) }
+          0% { transform: translateX(0) tran      {/* Паутины сверху */}
+      <svg className="absolute top-0 left-[10%] opacity-50" width="120" height="200" viewBox="0 0 120 200">
+        <g stroke="#c8b4a0" strokeWidth="0.5" fill="none">
+          <line x1="60" y1="0" x2="60" y2="190" />
+          <line x1="60" y1="0" x2="10" y2="150" />
+          <line x1="60" y1="0" x2="110" y2="150" />
+          <line x1="60" y1="0" x2="20" y2="80" />
+          <line x1="60" y1="0" x2="100" y2="80" />
+          <path d="M40 40 Q55 60 50 85" />
+          <path d="M80 40 Q65 60 70 85" />
+          <path d="M30 100 Q50 120 45 150" />
+          <path d="M90 100 Q70 120 75 150" />
+        </g>
+      </svg>
+
+      <svg className="absolute top-0 right-[18%] opacity-40" width="90" height="160" viewBox="0 0 90 160">
+        <g stroke="#c8b4a0" strokeWidth="0.5" fill="none">
+          <line x1="45" y1="0" x2="45" y2="150" />
+          <line x1="45" y1="0" x2="10" y2="110" />
+          <line x1="45" y1="0" x2="80" y2="110" />
+          <path d="M30 30 Q42 45 38 65" />
+          <path d="M60 30 Q48 45 52 65" />
+          <path d="M22 80 Q38 95 35 120" />
+          <path d="M68 80 Q52 95 55 120" />
+        </g>
+      </svg>
+
+      {/* Паук на нитке */}
+      <div className="absolute top-0 left-[14%]" style={{ animation: 'spiderSwing 6s ease-in-out infinite' }}>
+        <svg width="24" height="30" viewBox="0 0 24 30">
+          <line x1="12" y1="0" x2="12" y2="12" stroke="#c8b4a0" strokeWidth="0.5" />
+          <g transform="translate(12, 18)" fill="#08030a">
+            <ellipse cx="0" cy="0" rx="4" ry="5" />
+            <ellipse cx="0" cy="-4.5" rx="2.2" ry="2.2" />
+            <line x1="-3" y1="-2" x2="-9" y2="-6" stroke="#08030a" strokeWidth="0.8" />
+            <line x1="-3" y1="0" x2="-10" y2="0" stroke="#08030a" strokeWidth="0.8" />
+            <line x1="-3" y1="2" x2="-9" y2="6" stroke="#08030a" strokeWidth="0.8" />
+            <line x1="3" y1="-2" x2="9" y2="-6" stroke="#08030a" strokeWidth="0.8" />
+            <line x1="3" y1="0" x2="10" y2="0" stroke="#08030a" strokeWidth="0.8" />
+            <line x1="3" y1="2" x2="9" y2="6" stroke="#08030a" strokeWidth="0.8" />
+          </g>
+        </svg>
+      </div>
+
+      {/* Тыквы */}
+      <div className="absolute bottom-[14vh] left-[4%]" style={{ animation: 'pumpkinGlow 3.2s ease-in-out infinite' }}>
+        <svg width="44" height="44" viewBox="0 0 44 44">
+          <path d="M22 4 Q20 8 20 11" stroke="#3a5a20" strokeWidth="2" fill="none" />
+          <ellipse cx="22" cy="25" rx="17" ry="15" fill="#d4551a" />
+          <ellipse cx="22" cy="25" rx="17" ry="15" fill="none" stroke="#8a2808" strokeWidth="1" />
+          <polygon points="15,22 11,17 15,24" fill="#0a0400" />
+          <polygon points="29,22 33,17 29,24" fill="#0a0400" />
+          <path d="M14 30 Q22 35 30 30" stroke="#0a0400" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+        </svg>
+      </div>
+
+      <div className="absolute bottom-[18vh] right-[4%]" style={{ animation: 'pumpkinGlow 3.8s ease-in-out 0.6s infinite' }}>
+        <svg width="36" height="36" viewBox="0 0 44 44">
+          <path d="M22 4 Q20 8 20 11" stroke="#3a5a20" strokeWidth="2" fill="none" />
+          <ellipse cx="22" cy="25" rx="17" ry="15" fill="#e06a24" />
+          <ellipse cx="22" cy="25" rx="17" ry="15" fill="none" stroke="#8a2808" strokeWidth="1" />
+          <polygon points="15,22 11,17 15,24" fill="#0a0400" />
+          <polygon points="29,22 33,17 29,24" fill="#0a0400" />
+          <path d="M14 30 Q22 35 30 30" stroke="#0a0400" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+        </svg>
+      </div>
+
+      {/* Конфеты на нитках */}
+      <svg className="absolute top-0 left-[35%] opacity-70" width="80" height="140" viewBox="0 0 80 140">
+        <line x1="20" y1="0" x2="20" y2="50" stroke="#aaa" strokeWidth="0.3" />
+        <line x1="50" y1="0" x2="50" y2="80" stroke="#aaa" strokeWidth="0.3" />
+        <line x1="65" y1="0" x2="65" y2="40" stroke="#aaa" strokeWidth="0.3" />
+        <circle cx="20" cy="55" r="7" fill="#ff8a3a" stroke="#0a0400" strokeWidth="0.5" />
+        <circle cx="20" cy="55" r="2" fill="#fff" opacity="0.7" />
+        <circle cx="50" cy="85" r="8" fill="#d94a8c" stroke="#0a0400" strokeWidth="0.5" />
+        <circle cx="50" cy="85" r="2.5" fill="#fff" opacity="0.7" />
+        <circle cx="65" cy="45" r="6" fill="#8a3ab8" stroke="#0a0400" strokeWidth="0.5" />
+        <circle cx="65" cy="45" r="1.8" fill="#fff" opacity="0.7" />
+      </svg>
+slateY(0) scale(0.85) }
           25% { transform: translateX(28vw) translateY(-25px) scale(1) }
           50% { transform: translateX(55vw) translateY(18px) scale(0.9) }
           75% { transform: translateX(82vw) translateY(-22px) scale(1.05) }
