@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, BarChart3, Trophy, Users, Link2, Building2, Swords,
   Coins, Award, Megaphone, Ban, ScrollText, FlaskConical,
   Settings as SettingsIcon, Loader2, Search, Trash2, Plus,
-  Crown, CheckCircle2, XCircle, RefreshCw,
+  Crown, CheckCircle2, XCircle, RefreshCw, Camera, Upload,
 } from 'lucide-react';
 import { supabase, type User, type Tournament, type Match, type Team } from '../../supabase';
 import { haptic } from '../../lib/telegram';
@@ -293,13 +293,24 @@ function StatsSection({ onError }: { onError: (e: string | null) => void }) {
 function TournamentsSection({ onError, onToast }: { onError: (e: string | null) => void; onToast: (m: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState<Tournament[]>([]);
+  const [organizers, setOrganizers] = useState<any[]>([]);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: '', max_teams: '16', prize_gold: '0' });
+  const [form, setForm] = useState({
+    name: '',
+    max_teams: '16',
+    prize_gold: '0',
+    sponsor_channel: '',
+    organizer_id: '0',
+  });
 
   const load = useCallback(async () => {
     setLoading(true); onError(null);
-    const { data, error } = await supabase.from('tournaments').select('*').order('created_at', { ascending: false });
-    if (error) onError(error.message); else setList((data ?? []) as Tournament[]);
+    const [tRes, oRes] = await Promise.all([
+      supabase.from('tournaments').select('*').order('created_at', { ascending: false }),
+      supabase.from('organizers').select('id, name, tag, logo_url').order('name'),
+    ]);
+    if (tRes.error) onError(tRes.error.message); else setList((tRes.data ?? []) as Tournament[]);
+    setOrganizers(oRes.data ?? []);
     setLoading(false);
   }, [onError]);
 
@@ -307,29 +318,34 @@ function TournamentsSection({ onError, onToast }: { onError: (e: string | null) 
 
   const create = async () => {
     if (form.name.trim().length < 3) { onError('Название от 3 символов'); return; }
+    const orgId = parseInt(form.organizer_id);
     const { error } = await supabase.from('tournaments').insert({
       name: form.name.trim(),
       max_teams: parseInt(form.max_teams) || 16,
       prize_gold: parseInt(form.prize_gold) || 0,
+      sponsor_channel: form.sponsor_channel.trim() || null,
+      organizer_id: orgId > 0 ? orgId : null,
       status: 'waiting',
     });
     if (error) { onError(error.message); return; }
-    onToast('✅ Турнир создан');
-    setForm({ name: '', max_teams: '16', prize_gold: '0' });
+    onToast('Турнир создан');
+    setForm({ name: '', max_teams: '16', prize_gold: '0', sponsor_channel: '', organizer_id: '0' });
     setCreating(false);
     load();
   };
 
   const finish = async (id: number) => {
     await supabase.from('tournaments').update({ status: 'finished' }).eq('id', id);
-    onToast('🏁 Завершён'); load();
+    onToast('Завершён'); load();
   };
 
   const remove = async (id: number) => {
     if (!confirm('Удалить турнир?')) return;
     await supabase.from('tournaments').delete().eq('id', id);
-    onToast('❌ Удалён'); load();
+    onToast('Удалён'); load();
   };
+
+  const orgById = (id: number | null) => organizers.find((o) => o.id === id);
 
   if (loading) return <Loader />;
 
@@ -339,11 +355,48 @@ function TournamentsSection({ onError, onToast }: { onError: (e: string | null) 
         <Btn onClick={() => setCreating(true)} className="w-full"><Plus className="w-4 h-4" /> Создать турнир</Btn>
       ) : (
         <Card className="space-y-3">
-          <Input value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="Название" />
-          <div className="grid grid-cols-2 gap-2">
-            <Input value={form.max_teams} onChange={(v) => setForm({ ...form, max_teams: v.replace(/\D/g, '') })} placeholder="Команд" />
-            <Input value={form.prize_gold} onChange={(v) => setForm({ ...form, prize_gold: v.replace(/\D/g, '') })} placeholder="Приз" />
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-muted font-bold block mb-1">Название</label>
+            <Input value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="Standoff Cup #12" />
           </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-muted font-bold block mb-1">Команд</label>
+              <Input value={form.max_teams} onChange={(v) => setForm({ ...form, max_teams: v.replace(/\D/g, '') })} placeholder="16" />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-muted font-bold block mb-1">Приз (G)</label>
+              <Input value={form.prize_gold} onChange={(v) => setForm({ ...form, prize_gold: v.replace(/\D/g, '') })} placeholder="500" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-muted font-bold block mb-1">Канал спонсора (username)</label>
+            <Input value={form.sponsor_channel} onChange={(v) => setForm({ ...form, sponsor_channel: v })} placeholder="@standoff_news или пусто" />
+          </div>
+
+          <div>
+            <label className="text-[10px] uppercase tracking-widest text-muted font-bold block mb-1">Организатор</label>
+            <select
+              value={form.organizer_id}
+              onChange={(e) => setForm({ ...form, organizer_id: e.target.value })}
+              className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm focus:border-orange transition-colors"
+            >
+              <option value="0">— Без организатора —</option>
+              {organizers.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}{o.tag ? ` [${o.tag}]` : ''}
+                </option>
+              ))}
+            </select>
+            {organizers.length === 0 && (
+              <div className="text-muted text-[10px] mt-1">
+                Сначала добавь организатора во вкладке Организаторы
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <Btn onClick={create} className="flex-1"><CheckCircle2 className="w-3.5 h-3.5" /> Создать</Btn>
             <Btn variant="ghost" onClick={() => setCreating(false)}>Отмена</Btn>
@@ -351,35 +404,56 @@ function TournamentsSection({ onError, onToast }: { onError: (e: string | null) 
         </Card>
       )}
 
-      {list.length === 0 ? <Empty text="Турниров нет" /> : list.map((t) => (
-        <Card key={t.id}>
-          <div className="flex items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-black text-sm truncate">{t.name}</div>
-              <div className="text-muted text-[11px] mt-1">
-                {t.max_teams} команд · приз {t.prize_gold ?? 0} G · {fmtDate(t.created_at)}
-              </div>
-              <div className="mt-2">
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${
-                  t.status === 'waiting' ? 'bg-success/15 text-success'
-                  : t.status === 'active' ? 'bg-orange/15 text-orange'
-                  : 'bg-muted/15 text-muted'
-                }`}>{t.status}</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {t.status !== 'finished' && (
-                <Btn variant="success" onClick={() => finish(t.id)}>Завершить</Btn>
+      {list.length === 0 ? <Empty text="Турниров нет" /> : list.map((t) => {
+        const org = orgById((t as any).organizer_id ?? null);
+        return (
+          <Card key={t.id}>
+            <div className="flex items-start gap-3">
+              {org?.logo_url ? (
+                <div className="w-11 h-11 rounded-xl overflow-hidden bg-bg2 border border-border flex-shrink-0">
+                  <img src={org.logo_url} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-11 h-11 rounded-xl bg-orange/10 border border-orange/30 flex items-center justify-center flex-shrink-0">
+                  <Trophy className="w-5 h-5 text-orange" />
+                </div>
               )}
-              <Btn variant="danger" onClick={() => remove(t.id)}><Trash2 className="w-3.5 h-3.5" /></Btn>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-black text-sm truncate">{t.name}</div>
+                <div className="text-muted text-[11px] mt-1">
+                  {t.max_teams} команд · приз {t.prize_gold ?? 0} G · {fmtDate(t.created_at)}
+                </div>
+                {org && (
+                  <div className="text-orange text-[10px] font-bold mt-0.5 truncate">
+                    {org.name}{org.tag ? ` [${org.tag}]` : ''}
+                  </div>
+                )}
+                {(t as any).sponsor_channel && (
+                  <div className="text-muted text-[10px] mt-0.5 truncate">
+                    {(t as any).sponsor_channel}
+                  </div>
+                )}
+                <div className="mt-2">
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${
+                    t.status === 'waiting' ? 'bg-success/15 text-success'
+                    : t.status === 'active' ? 'bg-orange/15 text-orange'
+                    : 'bg-muted/15 text-muted'
+                  }`}>{t.status}</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {t.status !== 'finished' && (
+                  <Btn variant="success" onClick={() => finish(t.id)}>Завершить</Btn>
+                )}
+                <Btn variant="danger" onClick={() => remove(t.id)}><Trash2 className="w-3.5 h-3.5" /></Btn>
+              </div>
             </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        );
+      })}
     </div>
   );
 }
-
 /* ============================================================
  *  3. СПОНСОРЫ
  * ============================================================ */

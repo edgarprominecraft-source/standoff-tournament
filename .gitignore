@@ -6,3 +6,16 @@ bot/__pycache__
 *.pyc
 .DS_Store
 .vercel
+# env + backups
+.env
+bot/.env
+*.env.backup
+*.backup.tsx
+*.bak
+
+# env + backups
+.env
+bot/.env
+*.env.backup
+*.backup.tsx
+*.bak
