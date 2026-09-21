@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Users, Trophy, Swords, Shield, Coins, Bell, Ban, Check,
   Crown, Search, Send, AlertTriangle, TrendingUp, ClipboardList,
+  Building2, Plus, Upload, Trash2, Camera, Play, Pause,
 } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
 import {
   getAdminStats, searchUsers, getRecentUsers, banUser, unbanUser,
-  giveCoins, setUserRole, getAllTournamentsAdmin, finishTournament,
-  deleteTournament, sendNotificationToAll, sendNotificationToUser,
+  giveCoins, setUserRole, setPremium, setRank,
+  getAllTournamentsAdmin, createTournament, finishTournament,
+  activateTournament, deleteTournament,
+  getAllOrganizersAdmin, createOrganizer, updateOrganizer, deleteOrganizer,
+  uploadOrganizerLogo, sendNotificationToAll, sendNotificationToUser,
 } from '../../lib/admin';
 import ResultInput from './ResultInput';
 
@@ -18,7 +22,7 @@ type Props = {
   onClose: () => void;
 };
 
-type Tab = 'stats' | 'users' | 'tournaments' | 'results' | 'notify';
+type Tab = 'stats' | 'users' | 'organizers' | 'tournaments' | 'results' | 'notify';
 
 export default function AdminPanel({ admin, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('stats');
@@ -51,25 +55,24 @@ export default function AdminPanel({ admin, onClose }: Props) {
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full bg-white/20 border border-white/40 flex items-center justify-center"
-          >
+          <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/20 border border-white/40 flex items-center justify-center">
             <X className="w-4 h-4 text-white" />
           </button>
         </div>
 
-        <div className="grid grid-cols-5 border-b border-border">
+        <div className="grid grid-cols-6 border-b border-border">
           <TabBtn active={tab === 'stats'} onClick={() => setTab('stats')} icon={TrendingUp} label="Стата" />
           <TabBtn active={tab === 'users'} onClick={() => setTab('users')} icon={Users} label="Игроки" />
+          <TabBtn active={tab === 'organizers'} onClick={() => setTab('organizers')} icon={Building2} label="Орг" />
           <TabBtn active={tab === 'tournaments'} onClick={() => setTab('tournaments')} icon={Trophy} label="Турниры" />
-          <TabBtn active={tab === 'results'} onClick={() => setTab('results')} icon={ClipboardList} label="Результаты" />
+          <TabBtn active={tab === 'results'} onClick={() => setTab('results')} icon={ClipboardList} label="Матчи" />
           <TabBtn active={tab === 'notify'} onClick={() => setTab('notify')} icon={Bell} label="Рассылка" />
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
           {tab === 'stats' && <StatsTab />}
           {tab === 'users' && <UsersTab admin={admin} />}
+          {tab === 'organizers' && <OrganizersTab />}
           {tab === 'tournaments' && <TournamentsTab />}
           {tab === 'results' && <ResultInput />}
           {tab === 'notify' && <NotifyTab />}
@@ -106,15 +109,14 @@ function StatsTab() {
     })();
   }, []);
 
-  if (loading || !stats) {
-    return <div className="text-center text-muted text-sm py-8">Загрузка...</div>;
-  }
+  if (loading || !stats) return <div className="text-center text-muted text-sm py-8">Загрузка...</div>;
 
   return (
     <div className="space-y-3">
       <StatRow icon={Users} label="Игроков" value={stats.users} color="bg-blue-500/10 text-blue-600" />
+      <StatRow icon={Building2} label="Организаторов" value={stats.organizers} color="bg-purple-500/10 text-purple-600" />
       <StatRow icon={Trophy} label="Турниров" value={stats.tournaments} color="bg-orange/10 text-orange" />
-      <StatRow icon={Swords} label="Матчей" value={stats.matches} color="bg-purple-500/10 text-purple-600" />
+      <StatRow icon={Swords} label="Матчей" value={stats.matches} color="bg-red-500/10 text-red-600" />
       <StatRow icon={Shield} label="Кланов" value={stats.clans} color="bg-green-500/10 text-green-600" />
       <StatRow icon={Users} label="Команд" value={stats.teams} color="bg-pink-500/10 text-pink-600" />
     </div>
@@ -205,11 +207,18 @@ function UsersTab({ admin }: { admin: User }) {
                   ID: {u.user_id} · @{u.username || '—'}
                 </div>
               </div>
-              {u.banned && (
-                <span className="text-[10px] bg-danger/10 text-danger border border-danger/30 rounded px-2 py-0.5 font-bold">
-                  БАН
-                </span>
-              )}
+              <div className="flex flex-col items-end gap-1">
+                {u.banned && (
+                  <span className="text-[10px] bg-danger/10 text-danger border border-danger/30 rounded px-2 py-0.5 font-bold">
+                    БАН
+                  </span>
+                )}
+                {u.has_premium && (
+                  <span className="text-[10px] bg-orange/10 text-orange border border-orange/30 rounded px-2 py-0.5 font-bold">
+                    ⭐ PREMIUM
+                  </span>
+                )}
+              </div>
             </button>
           ))}
         </div>
@@ -223,6 +232,7 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
   const [banReason, setBanReason] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
   const [notifText, setNotifText] = useState('');
+  const [rankInput, setRankInput] = useState('');
 
   const doBan = async () => {
     if (!banReason.trim()) { hapticError(); setMsg('Укажи причину'); return; }
@@ -248,8 +258,13 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
   };
 
   const doPremium = async (val: boolean) => {
-    await supabase.from('users').update({ has_premium: val }).eq('user_id', u.user_id);
-    hapticSuccess(); setMsg(val ? 'Premium выдан' : 'Premium снят'); onUpdate();
+    await setPremium(u.user_id, val);
+    hapticSuccess(); setMsg(val ? '⭐ Premium выдан' : 'Premium снят'); onUpdate();
+  };
+
+  const doRank = async (rank: string | null) => {
+    await setRank(u.user_id, rank);
+    hapticSuccess(); setMsg(`Звание: ${rank || 'снято'}`); onUpdate();
   };
 
   const doNotify = async () => {
@@ -257,6 +272,13 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
     await sendNotificationToUser(u.user_id, 'Сообщение от админа', notifText.trim());
     hapticSuccess(); setMsg('Уведомление отправлено'); setNotifText('');
   };
+
+  const ranks = [
+    'bronze_1', 'bronze_2', 'bronze_3', 'bronze_4',
+    'silver_1', 'silver_2', 'silver_3', 'silver_4',
+    'gold_1', 'gold_2', 'gold_3', 'gold_4',
+    'phoenix', 'ranger', 'champion', 'master', 'elite', 'legend'
+  ];
 
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-3">
@@ -281,11 +303,27 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
           <DetailRow label="Standoff ID" value={u.standoff_id || '—'} />
           <DetailRow label="Баланс" value={`${u.balance || 0} 💰`} />
           <DetailRow label="Роль" value={u.role || '—'} />
-          <DetailRow label="Premium" value={u.has_premium ? '✅ Да' : '❌ Нет'} />
+          <DetailRow label="Premium" value={u.has_premium ? '⭐ Да' : '❌ Нет'} />
+          <DetailRow label="Звание" value={u.rank || '—'} />
+          <DetailRow label="K/D" value={`${u.kills || 0} / ${u.deaths || 0}`} />
           <DetailRow label="Статус" value={u.banned ? '🚫 Забанен' : '✅ Активен'} />
         </div>
       </div>
 
+      {/* PREMIUM */}
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Premium</div>
+        <div className="flex gap-2">
+          <button onClick={() => doPremium(true)} className="flex-1 bg-gradient-to-br from-orange to-orange2 text-white rounded-lg py-2 text-xs font-bold">
+            ⭐ Выдать
+          </button>
+          <button onClick={() => doPremium(false)} className="flex-1 bg-bg2 border border-border text-muted rounded-lg py-2 text-xs font-bold">
+            Снять
+          </button>
+        </div>
+      </div>
+
+      {/* Роли */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Роли</div>
         <div className="flex flex-wrap gap-2">
@@ -296,18 +334,22 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
         </div>
       </div>
 
+      {/* Звания */}
       <div className="bg-card border border-border rounded-2xl p-4">
-        <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Premium</div>
-        <div className="flex gap-2">
-          <button onClick={() => doPremium(true)} className="flex-1 bg-gradient-to-br from-orange to-orange2 text-white rounded-lg py-2 text-xs font-bold">
-            Выдать Premium
-          </button>
-          <button onClick={() => doPremium(false)} className="flex-1 bg-bg2 border border-border text-muted rounded-lg py-2 text-xs font-bold">
-            Снять
-          </button>
-        </div>
+        <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Звание</div>
+        <select
+          value={rankInput || u.rank || ''}
+          onChange={(e) => { setRankInput(e.target.value); doRank(e.target.value || null); }}
+          className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-xs"
+        >
+          <option value="">— Не указано —</option>
+          {ranks.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
       </div>
 
+      {/* Монеты */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Монеты</div>
         <div className="flex gap-2">
@@ -321,6 +363,7 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
         </div>
       </div>
 
+      {/* Уведомление */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Личное сообщение</div>
         <textarea
@@ -335,6 +378,7 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
         </button>
       </div>
 
+      {/* Бан */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Бан</div>
         {u.banned ? (
@@ -376,14 +420,289 @@ function DetailRow({ label, value }: any) {
   );
 }
 
+// ===== ОРГАНИЗАТОРЫ =====
+function OrganizersTab() {
+  const [organizers, setOrganizers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<any | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const data = await getAllOrganizersAdmin();
+    setOrganizers(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  if (showCreate) {
+    return (
+      <CreateOrganizerForm
+        onBack={() => setShowCreate(false)}
+        onCreated={() => { setShowCreate(false); load(); }}
+      />
+    );
+  }
+
+  if (selectedOrg) {
+    return (
+      <OrgDetail
+        org={selectedOrg}
+        onBack={() => { setSelectedOrg(null); load(); }}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={() => setShowCreate(true)}
+        className="w-full bg-orange text-white font-black rounded-2xl py-3.5 text-sm shadow-orange flex items-center justify-center gap-2"
+      >
+        <Plus className="w-4 h-4" /> Добавить организатора
+      </button>
+
+      {loading ? (
+        <div className="text-center text-muted text-sm py-8">Загрузка...</div>
+      ) : organizers.length === 0 ? (
+        <div className="bg-bg2 border border-dashed border-border2 rounded-xl p-6 text-center text-muted text-xs">
+          Организаторов нет
+        </div>
+      ) : (
+        organizers.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => setSelectedOrg(o)}
+            className="w-full bg-card border border-border rounded-xl p-3 flex items-center gap-3 hover:border-orange/40 text-left"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {o.logo_url ? (
+                <img src={o.logo_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <Building2 className="w-6 h-6 text-white" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-black text-sm font-bold truncate">{o.name}</div>
+              <div className="text-muted text-[10px]">[{o.tag || '—'}]</div>
+            </div>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+function CreateOrganizerForm({ onBack, onCreated }: any) {
+  const [name, setName] = useState('');
+  const [tag, setTag] = useState('');
+  const [desc, setDesc] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (name.trim().length < 2) { setError('Название минимум 2 символа'); return; }
+    setSaving(true); setError(null);
+
+    const res = await createOrganizer({
+      name: name.trim(),
+      tag: tag.trim().toUpperCase(),
+      description: desc.trim(),
+      logoUrl: null,
+      ownerId: null,
+    });
+
+    setSaving(false);
+    if (res.error) { setError(res.error.message); return; }
+    hapticSuccess();
+    onCreated();
+  };
+
+  return (
+    <div className="space-y-3">
+      <button onClick={onBack} className="text-orange text-xs font-bold">← Назад</button>
+
+      <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+        <div>
+          <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Название</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Seven Tournament"
+            className="w-full bg-bg2 border border-border rounded-xl px-3 py-2.5 text-black text-sm"
+          />
+        </div>
+        <div>
+          <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Тег</label>
+          <input
+            value={tag}
+            onChange={(e) => setTag(e.target.value.toUpperCase().slice(0, 6))}
+            placeholder="SEVEN"
+            maxLength={6}
+            className="w-full bg-bg2 border border-border rounded-xl px-3 py-2.5 text-black text-sm"
+          />
+        </div>
+        <div>
+          <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Описание</label>
+          <textarea
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Организация турниров по Standoff 2"
+            rows={2}
+            className="w-full bg-bg2 border border-border rounded-xl px-3 py-2.5 text-black text-sm resize-none"
+          />
+        </div>
+
+        {error && (
+          <div className="bg-danger/10 border border-danger/30 rounded-xl p-3 text-xs text-danger font-bold">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={save}
+          disabled={saving}
+          className="w-full bg-orange text-white font-black rounded-xl py-3 text-sm disabled:opacity-50"
+        >
+          {saving ? 'Создаём...' : 'Создать организатора'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function OrgDetail({ org, onBack }: { org: any; onBack: () => void }) {
+  const [name, setName] = useState(org.name);
+  const [tag, setTag] = useState(org.tag || '');
+  const [desc, setDesc] = useState(org.description || '');
+  const [logo, setLogo] = useState(org.logo_url);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) { hapticError(); setMsg('Файл макс 3MB'); return; }
+
+    setUploading(true);
+    const url = await uploadOrganizerLogo(org.id, file);
+    if (!url) { setUploading(false); hapticError(); setMsg('Ошибка загрузки'); return; }
+
+    await updateOrganizer(org.id, { logo_url: url });
+    setLogo(url);
+    setUploading(false);
+    hapticSuccess();
+    setMsg('Логотип обновлён');
+  };
+
+  const save = async () => {
+    setSaving(true);
+    await updateOrganizer(org.id, {
+      name: name.trim(),
+      tag: tag.trim().toUpperCase(),
+      description: desc.trim(),
+    });
+    setSaving(false);
+    hapticSuccess();
+    setMsg('Сохранено');
+  };
+
+  const remove = async () => {
+    if (!confirm('Удалить организатора?')) return;
+    await deleteOrganizer(org.id);
+    hapticSuccess();
+    onBack();
+  };
+
+  return (
+    <div className="space-y-3">
+      <button onClick={onBack} className="text-orange text-xs font-bold">← Назад</button>
+
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden border-2 border-orange/30">
+              {logo ? (
+                <img src={logo} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <Building2 className="w-10 h-10 text-white" />
+              )}
+            </div>
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-orange text-white flex items-center justify-center shadow-orange border-2 border-white disabled:opacity-50"
+            >
+              <Camera className="w-3.5 h-3.5" />
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-black font-black text-lg">{name}</div>
+            <div className="text-orange font-bold text-xs">[{tag || '—'}]</div>
+            {uploading && <div className="text-muted text-[10px] mt-1">Загрузка логотипа...</div>}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Название</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm" />
+          </div>
+          <div>
+            <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Тег</label>
+            <input value={tag} onChange={(e) => setTag(e.target.value.toUpperCase().slice(0, 6))} maxLength={6} className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm" />
+          </div>
+          <div>
+            <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Описание</label>
+            <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm resize-none" />
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex-1 bg-orange text-white rounded-xl py-2.5 font-bold text-xs disabled:opacity-50"
+          >
+            {saving ? 'Сохраняем...' : 'Сохранить'}
+          </button>
+          <button
+            onClick={remove}
+            className="bg-danger/10 border border-danger/30 text-danger rounded-xl py-2.5 px-3 font-bold text-xs flex items-center gap-1"
+          >
+            <Trash2 className="w-3 h-3" /> Удалить
+          </button>
+        </div>
+
+        {msg && (
+          <div className="bg-orange/10 border border-orange/30 rounded-xl p-3 text-xs text-orange font-bold text-center mt-3">
+            {msg}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ===== ТУРНИРЫ =====
 function TournamentsTab() {
   const [tournaments, setTournaments] = useState<any[]>([]);
+  const [organizers, setOrganizers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
 
   const load = async () => {
-    const data = await getAllTournamentsAdmin();
-    setTournaments(data);
+    setLoading(true);
+    const [t, o] = await Promise.all([
+      getAllTournamentsAdmin(),
+      getAllOrganizersAdmin(),
+    ]);
+    setTournaments(t);
+    setOrganizers(o);
     setLoading(false);
   };
 
@@ -396,6 +715,13 @@ function TournamentsTab() {
     load();
   };
 
+  const doActivate = async (id: number) => {
+    if (!confirm('Запустить турнир?')) return;
+    await activateTournament(id);
+    hapticSuccess();
+    load();
+  };
+
   const doDelete = async (id: number) => {
     if (!confirm('Удалить турнир? Это необратимо.')) return;
     await deleteTournament(id);
@@ -403,10 +729,27 @@ function TournamentsTab() {
     load();
   };
 
+  if (showCreate) {
+    return (
+      <CreateTournamentForm
+        organizers={organizers}
+        onBack={() => setShowCreate(false)}
+        onCreated={() => { setShowCreate(false); load(); }}
+      />
+    );
+  }
+
   if (loading) return <div className="text-center text-muted text-sm py-8">Загрузка...</div>;
 
   return (
     <div className="space-y-2">
+      <button
+        onClick={() => setShowCreate(true)}
+        className="w-full bg-orange text-white font-black rounded-2xl py-3.5 text-sm shadow-orange flex items-center justify-center gap-2 mb-3"
+      >
+        <Plus className="w-4 h-4" /> Создать турнир
+      </button>
+
       {tournaments.length === 0 ? (
         <div className="text-center text-muted text-sm py-8">Турниров нет</div>
       ) : (
@@ -428,6 +771,11 @@ function TournamentsTab() {
               </div>
             </div>
             <div className="flex gap-2 mt-2">
+              {t.status === 'waiting' && (
+                <button onClick={() => doActivate(t.id)} className="flex-1 bg-blue-500/10 border border-blue-500/30 text-blue-600 rounded-lg py-2 text-xs font-bold flex items-center justify-center gap-1">
+                  <Play className="w-3 h-3" /> Запустить
+                </button>
+              )}
               {t.status === 'active' && (
                 <button onClick={() => doFinish(t.id)} className="flex-1 bg-green-500/10 border border-green-500/30 text-green-600 rounded-lg py-2 text-xs font-bold">
                   Закончить
@@ -440,6 +788,92 @@ function TournamentsTab() {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+function CreateTournamentForm({ organizers, onBack, onCreated }: any) {
+  const [name, setName] = useState('');
+  const [maxTeams, setMaxTeams] = useState('16');
+  const [prizeGold, setPrizeGold] = useState('500');
+  const [sponsorChannel, setSponsorChannel] = useState('');
+  const [organizerId, setOrganizerId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (name.trim().length < 3) { setError('Название минимум 3 символа'); return; }
+    const mt = parseInt(maxTeams);
+    const pg = parseInt(prizeGold);
+    if (isNaN(mt) || mt < 2) { setError('Команд минимум 2'); return; }
+    if (isNaN(pg) || pg < 0) { setError('Приз ≥ 0'); return; }
+
+    setSaving(true); setError(null);
+
+    const res = await createTournament({
+      name: name.trim(),
+      maxTeams: mt,
+      prizeGold: pg,
+      sponsorChannel: sponsorChannel.trim() || null,
+      organizerId: organizerId ? parseInt(organizerId) : null,
+    });
+
+    setSaving(false);
+    if (res.error) { setError(res.error.message); return; }
+    hapticSuccess();
+    onCreated();
+  };
+
+  return (
+    <div className="space-y-3">
+      <button onClick={onBack} className="text-orange text-xs font-bold">← Назад</button>
+
+      <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+        <div>
+          <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Название</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Seven Cup #1" className="w-full bg-bg2 border border-border rounded-xl px-3 py-2.5 text-black text-sm" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Команд</label>
+            <input type="number" value={maxTeams} onChange={(e) => setMaxTeams(e.target.value)} className="w-full bg-bg2 border border-border rounded-xl px-3 py-2.5 text-black text-sm" />
+          </div>
+          <div>
+            <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Приз (G)</label>
+            <input type="number" value={prizeGold} onChange={(e) => setPrizeGold(e.target.value)} className="w-full bg-bg2 border border-border rounded-xl px-3 py-2.5 text-black text-sm" />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Спонсор (канал)</label>
+          <input value={sponsorChannel} onChange={(e) => setSponsorChannel(e.target.value)} placeholder="@HePastic" className="w-full bg-bg2 border border-border rounded-xl px-3 py-2.5 text-black text-sm" />
+        </div>
+
+        <div>
+          <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Организатор</label>
+          <select value={organizerId} onChange={(e) => setOrganizerId(e.target.value)} className="w-full bg-bg2 border border-border rounded-xl px-3 py-2.5 text-black text-sm">
+            <option value="">— Без организатора —</option>
+            {organizers.map((o: any) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {error && (
+          <div className="bg-danger/10 border border-danger/30 rounded-xl p-3 text-xs text-danger font-bold">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={save}
+          disabled={saving}
+          className="w-full bg-orange text-white font-black rounded-xl py-3 text-sm disabled:opacity-50"
+        >
+          {saving ? 'Создаём...' : 'Создать турнир'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -457,7 +891,7 @@ function NotifyTab() {
     const res = await sendNotificationToAll(title.trim(), body.trim());
     setSending(false);
     if (res.error) { setMsg('Ошибка: ' + res.error); }
-    else { hapticSuccess(); setMsg('Рассылка отправлена всем'); setTitle(''); setBody(''); }
+    else { hapticSuccess(); setMsg('Рассылка отправлена'); setTitle(''); setBody(''); }
   };
 
   return (
@@ -469,32 +903,15 @@ function NotifyTab() {
 
       <div>
         <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Заголовок</label>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Например: Новый турнир!"
-          maxLength={60}
-          className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm"
-        />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например: Новый турнир!" maxLength={60} className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm" />
       </div>
 
       <div>
         <label className="text-muted text-[10px] uppercase tracking-widest font-bold block mb-1">Текст</label>
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Текст рассылки..."
-          rows={4}
-          maxLength={500}
-          className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm resize-none"
-        />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Текст..." rows={4} maxLength={500} className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm resize-none" />
       </div>
 
-      <button
-        onClick={send}
-        disabled={sending}
-        className="w-full bg-orange text-white font-black rounded-xl py-3 text-sm disabled:opacity-50 flex items-center justify-center gap-2"
-      >
+      <button onClick={send} disabled={sending} className="w-full bg-orange text-white font-black rounded-xl py-3 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
         <Send className="w-4 h-4" />
         {sending ? 'Отправляем...' : 'Отправить всем'}
       </button>
