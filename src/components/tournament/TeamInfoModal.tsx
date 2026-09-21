@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, User as UserIcon, Shield } from 'lucide-react';
+import { X, Users, User as UserIcon, Shield, Circle } from 'lucide-react';
 import { supabase } from '../../supabase';
+import { timeAgo, isOnline } from '../../lib/format';
 import type { BracketTeam } from '../../lib/bracket';
 
 type Props = {
@@ -16,6 +17,10 @@ type Player = {
   avatar_url: string | null;
   photo_url: string | null;
   standoff_id: string | null;
+  last_seen: string | null;
+  kills?: number;
+  deaths?: number;
+  matches_played?: number;
   role?: string;
 };
 
@@ -25,7 +30,6 @@ export default function TeamInfoModal({ team, onClose }: Props) {
 
   useEffect(() => {
     (async () => {
-      // Загружаем team, чтобы получить clan_id
       const { data: teamData } = await supabase
         .from('teams')
         .select('id, clan_id')
@@ -39,7 +43,6 @@ export default function TeamInfoModal({ team, onClose }: Props) {
 
       const clanId = (teamData as any).clan_id;
 
-      // Загружаем участников клана
       const { data: members } = await supabase
         .from('clan_members')
         .select('user_id, role')
@@ -54,13 +57,12 @@ export default function TeamInfoModal({ team, onClose }: Props) {
 
       const { data: users } = await supabase
         .from('users')
-        .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id')
+        .select('user_id, nickname, first_name, avatar_url, photo_url, standoff_id, last_seen, kills, deaths, matches_played')
         .in('user_id', ids);
 
       const roleMap = new Map<number, string>();
       members.forEach((m: any) => roleMap.set(m.user_id, m.role));
 
-      // Сортируем: лидер, офицеры, остальные
       const order = { leader: 0, officer: 1, member: 2 };
       const sorted = (users || []).sort((a: any, b: any) => {
         const ra = order[roleMap.get(a.user_id) as keyof typeof order] ?? 3;
@@ -68,7 +70,12 @@ export default function TeamInfoModal({ team, onClose }: Props) {
         return ra - rb;
       });
 
-      setPlayers(sorted as Player[]);
+      const withRole = sorted.map((u: any) => ({
+        ...u,
+        role: roleMap.get(u.user_id) || 'member',
+      }));
+
+      setPlayers(withRole as Player[]);
       setLoading(false);
     })();
   }, [team.id]);
@@ -86,6 +93,7 @@ export default function TeamInfoModal({ team, onClose }: Props) {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 26 }}
           onClick={(e) => e.stopPropagation()}
           className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[85vh] overflow-y-auto"
         >
@@ -103,7 +111,7 @@ export default function TeamInfoModal({ team, onClose }: Props) {
                   <div className="text-white font-black text-lg truncate">{team.name}</div>
                   <div className="text-white/80 text-[11px] font-bold flex items-center gap-1 mt-0.5">
                     <Users className="w-3 h-3" />
-                    {players.length} / 5 игроков
+                    {players.length} игроков
                   </div>
                 </div>
               </div>
@@ -133,21 +141,28 @@ export default function TeamInfoModal({ team, onClose }: Props) {
             ) : (
               <div className="space-y-2">
                 {players.map((p, i) => {
-                  const isCaptain = i === 0;
+                  const online = isOnline(p.last_seen);
+                  const kd = p.deaths && p.deaths > 0 ? (p.kills || 0) / p.deaths : (p.kills || 0);
+
                   return (
                     <motion.div
                       key={p.user_id}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.04 }}
+                      transition={{ delay: i * 0.05, type: 'spring', stiffness: 200 }}
                       className="bg-bg2 border border-border rounded-xl p-3 flex items-center gap-3"
                     >
-                      <div className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {p.avatar_url || p.photo_url ? (
-                          <img src={p.avatar_url || p.photo_url || ''} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <UserIcon className="w-5 h-5 text-muted" strokeWidth={1.5} />
-                        )}
+                      <div className="relative flex-shrink-0">
+                        <div className="w-11 h-11 rounded-full bg-card border border-border flex items-center justify-center overflow-hidden">
+                          {p.avatar_url || p.photo_url ? (
+                            <img src={p.avatar_url || p.photo_url || ''} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <UserIcon className="w-5 h-5 text-muted" strokeWidth={1.5} />
+                          )}
+                        </div>
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-bg2 ${
+                          online ? 'bg-green-500' : 'bg-gray-400'
+                        }`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-black font-bold text-sm truncate">
@@ -156,12 +171,28 @@ export default function TeamInfoModal({ team, onClose }: Props) {
                         <div className="text-muted text-[10px] font-medium">
                           {p.standoff_id ? `ID: ${p.standoff_id}` : 'ID не указан'}
                         </div>
-                      </div>
-                      {isCaptain && (
-                        <div className="text-[10px] px-2 py-0.5 rounded-md bg-orange/10 border border-orange/30 text-orange font-bold uppercase tracking-wider flex-shrink-0">
-                          Капитан
+                        <div className={`text-[10px] font-medium ${online ? 'text-green-600' : 'text-muted'}`}>
+                          {online ? 'в сети' : timeAgo(p.last_seen)}
                         </div>
-                      )}
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        {p.role === 'leader' && (
+                          <div className="text-[9px] px-1.5 py-0.5 rounded bg-orange/10 border border-orange/30 text-orange font-bold uppercase">
+                            Лидер
+                          </div>
+                        )}
+                        {p.role === 'officer' && (
+                          <div className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-600 font-bold uppercase">
+                            Офицер
+                          </div>
+                        )}
+                        {(p.matches_played || 0) > 0 && (
+                          <div className="text-[10px] font-bold text-black">
+                            К/Д {kd.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
                     </motion.div>
                   );
                 })}

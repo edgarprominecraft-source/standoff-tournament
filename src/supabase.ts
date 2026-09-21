@@ -32,7 +32,6 @@ export type User = {
   banned: boolean | null;
   ban_reason: string | null;
   favorite_map: string | null;
-  // ===== Новые поля =====
   rank: string | null;
   rank_stars: number | null;
   custom_badge: string | null;
@@ -42,6 +41,8 @@ export type User = {
   tokens: number | null;
   last_token_refill: string | null;
   has_premium: boolean | null;
+  custom_banner_url: string | null;
+  last_seen: string | null;
   created_at?: string;
 };
 
@@ -70,6 +71,15 @@ export type Team = {
   side: 'left' | 'right' | null;
   confirmed1: boolean;
   confirmed2: boolean;
+  clan_id: number | null;
+  clan_name: string | null;
+  clan_tag: string | null;
+  clan_logo_url: string | null;
+  team_name: string | null;
+  logo_url: string | null;
+  captain_id: number | null;
+  rules_accepted: boolean | null;
+  rules_accepted_at: string | null;
 };
 
 export type Match = {
@@ -81,4 +91,9 @@ export type Match = {
   score: string | null;
   status: 'pending' | 'live' | 'done';
   winner_id: number | null;
+  score_ct: number | null;
+  score_t: number | null;
+  photo_url: string | null;
+  finished_at: string | null;
+  channel_posted: boolean | null;
 };

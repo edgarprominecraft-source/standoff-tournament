@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Send, MessageCircle, Gamepad2, Swords, User as UserIcon } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess } from '../../lib/telegram';
+import { isOnline } from '../../lib/format';
 import ConfirmBar from './ConfirmBar';
 import MapPicker from './MapPicker';
 
@@ -25,6 +26,7 @@ type ChatMessage = {
   created_at: string;
   author_name?: string;
   author_photo?: string | null;
+  author_last_seen?: string | null;
 };
 
 type Stage = 'confirm' | 'picks' | 'ready';
@@ -58,7 +60,7 @@ export default function MatchRoom({
     const userIds = Array.from(new Set(data.map((m: any) => m.user_id)));
     const { data: users } = await supabase
       .from('users')
-      .select('user_id, nickname, first_name, photo_url')
+      .select('user_id, nickname, first_name, photo_url, avatar_url, last_seen')
       .in('user_id', userIds);
 
     const userMap = new Map<number, any>();
@@ -69,7 +71,8 @@ export default function MatchRoom({
       return {
         ...m,
         author_name: u?.nickname || u?.first_name || 'Игрок',
-        author_photo: u?.photo_url ?? null,
+        author_photo: u?.avatar_url || u?.photo_url || null,
+        author_last_seen: u?.last_seen || null,
       };
     });
 
@@ -78,12 +81,14 @@ export default function MatchRoom({
 
   useEffect(() => {
     loadMessages();
+
+    // Realtime подписка на новые сообщения
     const channel = supabase
       .channel(`chat-${matchId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'match_messages',
           filter: `match_id=eq.${matchId}`,
@@ -91,6 +96,7 @@ export default function MatchRoom({
         () => loadMessages()
       )
       .subscribe();
+
     return () => { supabase.removeChannel(channel); };
   }, [matchId]);
 
@@ -105,16 +111,20 @@ export default function MatchRoom({
     if (!text || sending) return;
     setSending(true);
     haptic('light');
+
     const { error } = await supabase.from('match_messages').insert({
       match_id: matchId,
       user_id: user.user_id,
       text: text.slice(0, 500),
     });
-    setSending(false);
+
     if (!error) {
       setInput('');
       hapticSuccess();
+      // Мгновенно подгружаем (не ждём realtime)
+      await loadMessages();
     }
+    setSending(false);
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -143,7 +153,7 @@ export default function MatchRoom({
       <div className="border-b border-border p-4 flex items-center gap-3 sticky top-0 bg-bg/95 backdrop-blur z-10">
         <button
           onClick={onClose}
-          className="p-2 rounded-xl bg-card border border-border hover:border-white/30 transition-colors"
+          className="p-2 rounded-xl bg-card border border-border hover:border-orange/30 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 text-white" />
         </button>
@@ -172,22 +182,10 @@ export default function MatchRoom({
             <div className="mt-4 bg-card border border-border rounded-2xl p-4">
               <div className="text-white font-bold text-sm mb-3">Что происходит</div>
               <ul className="text-muted text-xs space-y-2 leading-relaxed">
-                <li className="flex gap-2">
-                  <span className="text-white/40">—</span>
-                  <span>Обе команды нажимают «Я в сети»</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-white/40">—</span>
-                  <span>Таймер: 3 минуты на всё</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-white/40">—</span>
-                  <span>Если команда не подтвердила — вылет</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-white/40">—</span>
-                  <span>После подтверждения — выбор карты</span>
-                </li>
+                <li className="flex gap-2"><span className="text-white/40">—</span><span>Обе команды нажимают «Я в сети»</span></li>
+                <li className="flex gap-2"><span className="text-white/40">—</span><span>Таймер: 3 минуты на всё</span></li>
+                <li className="flex gap-2"><span className="text-white/40">—</span><span>Если команда не подтвердила — вылет</span></li>
+                <li className="flex gap-2"><span className="text-white/40">—</span><span>После подтверждения — выбор карты</span></li>
               </ul>
             </div>
           </div>
@@ -259,7 +257,9 @@ export default function MatchRoom({
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageCircle className="w-3.5 h-3.5 text-white" />
-                <div className="text-white text-xs font-bold uppercase tracking-wide">Чат матча</div>
+                <div className="text-white text-xs font-bold uppercase tracking-wide">
+                  Чат матча
+                </div>
               </div>
               <div className="text-muted text-[10px]">{messages.length} сообщ.</div>
             </div>
@@ -271,19 +271,27 @@ export default function MatchRoom({
                 <AnimatePresence initial={false}>
                   {messages.map((m) => {
                     const mine = m.user_id === user.user_id;
+                    const online = isOnline(m.author_last_seen);
                     return (
                       <motion.div
                         key={m.id}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        layout
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 26 }}
                         className={`flex gap-2 ${mine ? 'flex-row-reverse' : ''}`}
                       >
-                        <div className="w-7 h-7 rounded-full bg-card2 border border-border flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {m.author_photo ? (
-                            <img src={m.author_photo} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <UserIcon className="w-3.5 h-3.5 text-muted" strokeWidth={1.5} />
-                          )}
+                        <div className="relative flex-shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-card2 border border-border flex items-center justify-center overflow-hidden">
+                            {m.author_photo ? (
+                              <img src={m.author_photo} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <UserIcon className="w-3.5 h-3.5 text-muted" strokeWidth={1.5} />
+                            )}
+                          </div>
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card2 ${
+                            online ? 'bg-green-500' : 'bg-gray-400'
+                          }`} />
                         </div>
                         <div
                           className={`max-w-[70%] rounded-2xl px-3 py-2 ${
@@ -313,13 +321,15 @@ export default function MatchRoom({
                 maxLength={500}
                 className="flex-1 bg-bg border border-border rounded-xl px-3 py-2.5 text-white text-sm focus:border-white/40 transition-colors"
               />
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={sendMessage}
                 disabled={!input.trim() || sending}
                 className="bg-white text-black font-bold rounded-xl px-4 py-2.5 disabled:opacity-40 hover:bg-white/90 transition-colors flex items-center justify-center"
               >
                 <Send className="w-4 h-4" />
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>

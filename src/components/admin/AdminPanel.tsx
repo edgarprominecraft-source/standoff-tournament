@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Users, Trophy, Swords, Shield, Coins, Bell, Ban, Check,
-  Crown, Search, Send, AlertTriangle, TrendingUp, Lock,
+  Crown, Search, Send, AlertTriangle, TrendingUp, ClipboardList,
 } from 'lucide-react';
 import { supabase, type User } from '../../supabase';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
@@ -11,13 +11,14 @@ import {
   giveCoins, setUserRole, getAllTournamentsAdmin, finishTournament,
   deleteTournament, sendNotificationToAll, sendNotificationToUser,
 } from '../../lib/admin';
+import ResultInput from './ResultInput';
 
 type Props = {
   admin: User;
   onClose: () => void;
 };
 
-type Tab = 'stats' | 'users' | 'tournaments' | 'notify';
+type Tab = 'stats' | 'users' | 'tournaments' | 'results' | 'notify';
 
 export default function AdminPanel({ admin, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('stats');
@@ -34,10 +35,10 @@ export default function AdminPanel({ admin, onClose }: Props) {
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 26 }}
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-hidden flex flex-col"
       >
-        {/* Шапка */}
         <div className="bg-gradient-to-br from-orange to-orange2 p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/25 backdrop-blur border border-white/40 flex items-center justify-center">
@@ -58,19 +59,19 @@ export default function AdminPanel({ admin, onClose }: Props) {
           </button>
         </div>
 
-        {/* Табы */}
-        <div className="grid grid-cols-4 border-b border-border">
+        <div className="grid grid-cols-5 border-b border-border">
           <TabBtn active={tab === 'stats'} onClick={() => setTab('stats')} icon={TrendingUp} label="Стата" />
           <TabBtn active={tab === 'users'} onClick={() => setTab('users')} icon={Users} label="Игроки" />
           <TabBtn active={tab === 'tournaments'} onClick={() => setTab('tournaments')} icon={Trophy} label="Турниры" />
+          <TabBtn active={tab === 'results'} onClick={() => setTab('results')} icon={ClipboardList} label="Результаты" />
           <TabBtn active={tab === 'notify'} onClick={() => setTab('notify')} icon={Bell} label="Рассылка" />
         </div>
 
-        {/* Контент */}
         <div className="flex-1 overflow-y-auto p-5">
           {tab === 'stats' && <StatsTab />}
           {tab === 'users' && <UsersTab admin={admin} />}
           {tab === 'tournaments' && <TournamentsTab />}
+          {tab === 'results' && <ResultInput />}
           {tab === 'notify' && <NotifyTab />}
         </div>
       </motion.div>
@@ -82,7 +83,7 @@ function TabBtn({ active, onClick, icon: Icon, label }: any) {
   return (
     <button
       onClick={onClick}
-      className={`py-3 flex flex-col items-center gap-1 text-[10px] font-bold uppercase tracking-wide transition-colors ${
+      className={`py-3 flex flex-col items-center gap-1 text-[9px] font-bold uppercase tracking-wide transition-colors ${
         active ? 'text-orange border-b-2 border-orange' : 'text-muted border-b-2 border-transparent'
       }`}
     >
@@ -115,14 +116,18 @@ function StatsTab() {
       <StatRow icon={Trophy} label="Турниров" value={stats.tournaments} color="bg-orange/10 text-orange" />
       <StatRow icon={Swords} label="Матчей" value={stats.matches} color="bg-purple-500/10 text-purple-600" />
       <StatRow icon={Shield} label="Кланов" value={stats.clans} color="bg-green-500/10 text-green-600" />
-      <StatRow icon={Users} label="Команд в турнирах" value={stats.teams} color="bg-pink-500/10 text-pink-600" />
+      <StatRow icon={Users} label="Команд" value={stats.teams} color="bg-pink-500/10 text-pink-600" />
     </div>
   );
 }
 
 function StatRow({ icon: Icon, label, value, color }: any) {
   return (
-    <div className="bg-card border border-border rounded-2xl p-4 flex items-center gap-4">
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="bg-card border border-border rounded-2xl p-4 flex items-center gap-4"
+    >
       <div className={`w-12 h-12 rounded-2xl ${color} flex items-center justify-center flex-shrink-0`}>
         <Icon className="w-6 h-6" />
       </div>
@@ -130,7 +135,7 @@ function StatRow({ icon: Icon, label, value, color }: any) {
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold">{label}</div>
         <div className="text-black font-black text-2xl">{value}</div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -213,7 +218,6 @@ function UsersTab({ admin }: { admin: User }) {
   );
 }
 
-// ===== ДЕТАЛИ ИГРОКА =====
 function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
   const [msg, setMsg] = useState<string | null>(null);
   const [banReason, setBanReason] = useState('');
@@ -235,12 +239,17 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
     const n = parseInt(coinAmount);
     if (!n || isNaN(n)) { hapticError(); setMsg('Введи число'); return; }
     await giveCoins(u.user_id, n);
-    hapticSuccess(); setMsg(`Баланс изменён на ${n >= 0 ? '+' : ''}${n}`); onUpdate();
+    hapticSuccess(); setMsg(`Баланс ${n >= 0 ? '+' : ''}${n}`); onUpdate();
   };
 
   const doRole = async (role: string | null) => {
     await setUserRole(u.user_id, role);
     hapticSuccess(); setMsg(`Роль: ${role || 'снята'}`); onUpdate();
+  };
+
+  const doPremium = async (val: boolean) => {
+    await supabase.from('users').update({ has_premium: val }).eq('user_id', u.user_id);
+    hapticSuccess(); setMsg(val ? 'Premium выдан' : 'Premium снят'); onUpdate();
   };
 
   const doNotify = async () => {
@@ -250,7 +259,7 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
   };
 
   return (
-    <div className="space-y-3">
+    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-3">
       <button onClick={onBack} className="text-orange text-xs font-bold">← Назад</button>
 
       <div className="bg-card border border-border rounded-2xl p-4">
@@ -263,12 +272,8 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-black font-black text-base">
-              {u.nickname || u.first_name || 'Игрок'}
-            </div>
-            <div className="text-muted text-[11px]">
-              @{u.username || '—'} · ID {u.user_id}
-            </div>
+            <div className="text-black font-black text-base">{u.nickname || u.first_name || 'Игрок'}</div>
+            <div className="text-muted text-[11px]">@{u.username || '—'} · ID {u.user_id}</div>
           </div>
         </div>
 
@@ -276,12 +281,11 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
           <DetailRow label="Standoff ID" value={u.standoff_id || '—'} />
           <DetailRow label="Баланс" value={`${u.balance || 0} 💰`} />
           <DetailRow label="Роль" value={u.role || '—'} />
+          <DetailRow label="Premium" value={u.has_premium ? '✅ Да' : '❌ Нет'} />
           <DetailRow label="Статус" value={u.banned ? '🚫 Забанен' : '✅ Активен'} />
-          <DetailRow label="Клан ID" value={u.clan_id || '—'} />
         </div>
       </div>
 
-      {/* Роли */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Роли</div>
         <div className="flex flex-wrap gap-2">
@@ -292,21 +296,31 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
         </div>
       </div>
 
-      {/* Монеты */}
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Premium</div>
+        <div className="flex gap-2">
+          <button onClick={() => doPremium(true)} className="flex-1 bg-gradient-to-br from-orange to-orange2 text-white rounded-lg py-2 text-xs font-bold">
+            Выдать Premium
+          </button>
+          <button onClick={() => doPremium(false)} className="flex-1 bg-bg2 border border-border text-muted rounded-lg py-2 text-xs font-bold">
+            Снять
+          </button>
+        </div>
+      </div>
+
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Монеты</div>
         <div className="flex gap-2">
           <input
             value={coinAmount}
             onChange={(e) => setCoinAmount(e.target.value)}
-            placeholder="Например: 1000 или -500"
+            placeholder="+1000 или -500"
             className="flex-1 bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-sm"
           />
           <button onClick={doCoins} className="bg-orange text-white rounded-xl px-4 font-bold text-xs">OK</button>
         </div>
       </div>
 
-      {/* Уведомление */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Личное сообщение</div>
         <textarea
@@ -321,7 +335,6 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
         </button>
       </div>
 
-      {/* Бан */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">Бан</div>
         {u.banned ? (
@@ -342,11 +355,15 @@ function UserDetail({ user: u, admin, onBack, onUpdate }: any) {
       </div>
 
       {msg && (
-        <div className="bg-orange/10 border border-orange/30 rounded-xl p-3 text-xs text-orange font-bold text-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-orange/10 border border-orange/30 rounded-xl p-3 text-xs text-orange font-bold text-center"
+        >
           {msg}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
