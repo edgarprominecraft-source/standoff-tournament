@@ -1,627 +1,323 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useState, useMemo } from 'react';
 
 type Bat = {
   id: number;
-  startX: number; startY: number;
-  endX: number; endY: number;
-  duration: number; delay: number; scale: number;
+  top: number;
+  delay: number;
+  duration: number;
+  size: number;
+  flip: boolean;
 };
 
-type Ember = {
-  id: number; x: number; delay: number; duration: number; size: number;
+type Particle = {
+  id: number;
+  left: number;
+  delay: number;
+  duration: number;
+  size: number;
 };
 
 export default function HalloweenBackground() {
   const [bats, setBats] = useState<Bat[]>([]);
-  const [embers, setEmbers] = useState<Ember[]>([]);
+  const [particles, setParticles] = useState<Particle[]>([]);
 
   useEffect(() => {
     setBats(
       Array.from({ length: 5 }).map((_, i) => ({
         id: i,
-        startX: -10 + Math.random() * 30,
-        startY: 20 + Math.random() * 25,
-        endX: 110 + Math.random() * 20,
-        endY: 15 + Math.random() * 30,
-        duration: 22 + Math.random() * 14,
-        delay: Math.random() * 15,
-        scale: 0.6 + Math.random() * 0.7,
+        top: 8 + Math.random() * 35,
+        delay: i * 8 + Math.random() * 6,
+        duration: 22 + Math.random() * 12,
+        size: 18 + Math.random() * 14,
+        flip: Math.random() > 0.5,
       }))
     );
-    setEmbers(
-      Array.from({ length: 22 }).map((_, i) => ({
+    setParticles(
+      Array.from({ length: 18 }).map((_, i) => ({
         id: i,
-        x: Math.random() * 100,
-        delay: Math.random() * 10,
-        duration: 5 + Math.random() * 6,
-        size: 1 + Math.random() * 1.8,
+        left: Math.random() * 100,
+        delay: Math.random() * 15,
+        duration: 12 + Math.random() * 12,
+        size: 1 + Math.random() * 2.5,
       }))
     );
   }, []);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {/* === БАЗОВЫЙ ГРАДИЕНТ — ночь, глубокий фиолет, багровый низ === */}
+    <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden select-none">
+      {/* ===== Базовый градиент: тёмно-фиолетовый → чёрный ===== */}
       <div
         className="absolute inset-0"
         style={{
-          background: `
-            radial-gradient(ellipse 80% 50% at 50% 100%, rgba(120, 10, 0, 0.35) 0%, transparent 55%),
-            radial-gradient(ellipse 60% 40% at 80% 15%, rgba(180, 40, 20, 0.18) 0%, transparent 60%),
-            linear-gradient(180deg, #000000 0%, #05000a 25%, #0d0118 50%, #150120 75%, #05000a 100%)
-          `,
+          background:
+            'linear-gradient(180deg, #0a0410 0%, #14061f 35%, #1a0820 60%, #050108 100%)',
         }}
       />
 
-      {/* === ТУМАННОСТЬ НАВЕРХУ (размытые пятна) === */}
-      {[
-        { x: 15, y: 8, size: 340, color: 'rgba(60, 20, 90, 0.35)' },
-        { x: 70, y: 20, size: 420, color: 'rgba(40, 10, 70, 0.25)' },
-        { x: 45, y: 5, size: 280, color: 'rgba(80, 20, 50, 0.2)' },
-      ].map((n, i) => (
-        <motion.div
-          key={`neb-${i}`}
-          className="absolute rounded-full"
-          style={{
-            left: `${n.x}%`,
-            top: `${n.y}%`,
-            width: n.size,
-            height: n.size * 0.4,
-            background: `radial-gradient(ellipse, ${n.color} 0%, transparent 70%)`,
-            filter: 'blur(30px)',
-            transform: 'translate(-50%, -50%)',
-          }}
-          animate={{ opacity: [0.5, 0.9, 0.5] }}
-          transition={{ duration: 12 + i * 3, repeat: Infinity, ease: 'easeInOut' }}
-        />
-      ))}
+      {/* ===== Мягкие цветные пятна (глубина сцены) ===== */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 55% 35% at 15% 20%, rgba(80,20,60,0.25), transparent 70%), ' +
+            'radial-gradient(ellipse 50% 40% at 85% 25%, rgba(30,10,60,0.35), transparent 70%), ' +
+            'radial-gradient(ellipse 80% 30% at 50% 100%, rgba(60,15,40,0.4), transparent 80%)',
+        }}
+      />
 
-      {/* === ЗВЁЗДЫ (мелкие и редкие) === */}
-      {Array.from({ length: 70 }).map((_, i) => {
-        const size = Math.random() * 1.4 + 0.3;
-        const bright = Math.random() > 0.85;
-        return (
-          <motion.div
-            key={`star-${i}`}
-            className="absolute rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 48}%`,
-              width: size,
-              height: size,
-              background: bright ? '#fff8f0' : '#b8b8d0',
-              boxShadow: bright ? '0 0 4px #fff8f0, 0 0 8px rgba(255,200,150,0.5)' : 'none',
-            }}
-            animate={{ opacity: [0.15, bright ? 1 : 0.7, 0.15] }}
-            transition={{
-              duration: 3 + Math.random() * 6,
-              repeat: Infinity,
-              delay: Math.random() * 8,
-            }}
-          />
-        );
-      })}
-
-      {/* === КРОВАВАЯ ЛУНА (фотореалистичная) === */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.6 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 4, ease: 'easeOut' }}
-        className="absolute"
-        style={{ top: 60, right: 40, width: 130, height: 130 }}
-      >
-        {/* Внешнее гало — багровое свечение */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            inset: -80,
-            background:
-              'radial-gradient(circle, rgba(200, 40, 10, 0.35) 0%, rgba(120, 10, 0, 0.15) 30%, transparent 65%)',
-            filter: 'blur(15px)',
-          }}
-        />
-        {/* Второе гало — фиолетовое */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            inset: -140,
-            background:
-              'radial-gradient(circle, rgba(120, 40, 180, 0.18) 0%, transparent 60%)',
-            filter: 'blur(25px)',
-          }}
-        />
-        {/* Сама луна */}
+      {/* ===== Луна (реалистичная, с кратерами) ===== */}
+      <div className="absolute top-[6%] right-[8%]" style={{ width: 180, height: 180 }}>
+        {/* Внешнее гало */}
         <div
           className="absolute inset-0 rounded-full"
           style={{
             background:
-              'radial-gradient(circle at 35% 35%, #ffe0b8 0%, #e5a060 25%, #b05020 55%, #4a1005 85%, #200500 100%)',
-            boxShadow:
-              'inset -10px -15px 30px rgba(0, 0, 0, 0.7), inset 15px 10px 25px rgba(255, 200, 150, 0.25), 0 0 40px rgba(200, 60, 20, 0.5)',
+              'radial-gradient(circle, rgba(244,228,200,0.35) 0%, rgba(244,228,200,0.12) 40%, transparent 70%)',
+            transform: 'scale(2.2)',
+            filter: 'blur(8px)',
           }}
-        >
+        />
+        {/* Сама луна */}
+        <svg viewBox="0 0 180 180" className="relative w-full h-full">
+          <defs>
+            <radialGradient id="moonBody" cx="42%" cy="42%" r="58%">
+              <stop offset="0%" stopColor="#f8ead0" />
+              <stop offset="55%" stopColor="#e6d4b0" />
+              <stop offset="100%" stopColor="#a89070" />
+            </radialGradient>
+            <radialGradient id="craterShadow" cx="35%" cy="35%" r="65%">
+              <stop offset="0%" stopColor="#6a5a48" />
+              <stop offset="100%" stopColor="#4a3a2a" />
+            </radialGradient>
+          </defs>
+          <circle cx="90" cy="90" r="58" fill="url(#moonBody)" />
           {/* Кратеры */}
-          <div className="absolute rounded-full" style={{ top: '20%', left: '15%', width: '20%', height: '20%', background: 'radial-gradient(circle, rgba(60,20,5,0.5), transparent)', filter: 'blur(2px)' }} />
-          <div className="absolute rounded-full" style={{ top: '55%', left: '30%', width: '15%', height: '15%', background: 'radial-gradient(circle, rgba(80,30,10,0.6), transparent)', filter: 'blur(1.5px)' }} />
-          <div className="absolute rounded-full" style={{ top: '35%', right: '22%', width: '12%', height: '12%', background: 'radial-gradient(circle, rgba(60,20,5,0.55), transparent)', filter: 'blur(1.5px)' }} />
-          <div className="absolute rounded-full" style={{ bottom: '20%', right: '30%', width: '18%', height: '18%', background: 'radial-gradient(circle, rgba(50,15,0,0.5), transparent)', filter: 'blur(2px)' }} />
-          <div className="absolute rounded-full" style={{ top: '10%', right: '40%', width: '8%', height: '8%', background: 'radial-gradient(circle, rgba(80,30,10,0.5), transparent)', filter: 'blur(1px)' }} />
-        </div>
-      </motion.div>
-
-      {/* === ОБЛАКА, ПРОПЛЫВАЮЩИЕ ЧЕРЕЗ ЛУНУ === */}
-      <motion.div
-        className="absolute"
-        style={{ top: 90, right: -100, width: 420, height: 100, opacity: 0.7 }}
-        animate={{ x: ['-100%', '120%'] }}
-        transition={{ duration: 55, repeat: Infinity, ease: 'linear' }}
-      >
-        <div
-          className="w-full h-full"
-          style={{
-            background:
-              'radial-gradient(ellipse 60% 50% at 50% 50%, #0a0118 0%, #0a0118 40%, transparent 75%)',
-            filter: 'blur(12px)',
-          }}
-        />
-      </motion.div>
-
-      {/* === ДАЛЁКИЕ ГОРЫ === */}
-      <svg
-        className="absolute left-0 right-0 w-full"
-        style={{ bottom: 180, height: 140 }}
-        viewBox="0 0 1200 140"
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <linearGradient id="mountGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1a0525" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#05000a" stopOpacity="1" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M0 140 L0 90 Q80 55 160 95 Q240 40 340 80 Q420 20 520 90 Q600 45 700 85 Q800 25 900 95 Q980 55 1080 80 Q1140 50 1200 75 L1200 140 Z"
-          fill="url(#mountGrad)"
-        />
-      </svg>
-
-      {/* === ТУМАН ЗА ЛЕСОМ (движется медленно) === */}
-      <motion.div
-        className="absolute left-0 right-0"
-        style={{ bottom: 100, height: 180 }}
-        animate={{ x: ['-10%', '10%', '-10%'] }}
-        transition={{ duration: 60, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        <div
-          className="w-full h-full"
-          style={{
-            background:
-              'linear-gradient(to top, rgba(80, 40, 120, 0.35) 0%, rgba(80, 40, 120, 0.15) 50%, transparent 100%)',
-            filter: 'blur(30px)',
-          }}
-        />
-      </motion.div>
-
-      {/* === ДАЛЬНИЙ ЛЕС === */}
-      <svg
-        className="absolute left-0 right-0 w-full"
-        style={{ bottom: 60, height: 220 }}
-        viewBox="0 0 1200 220"
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <linearGradient id="farTree" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0a0014" stopOpacity="1" />
-            <stop offset="100%" stopColor="#000000" stopOpacity="1" />
-          </linearGradient>
-        </defs>
-        {Array.from({ length: 34 }).map((_, i) => {
-          const x = i * 36 + (i % 4) * 8;
-          const h = 60 + (i % 5) * 28;
-          return (
-            <polygon
-              key={`ft-${i}`}
-              points={`${x},220 ${x - 20},${220 - h} ${x + 20},${220 - h}`}
-              fill="url(#farTree)"
-              opacity="0.75"
-            />
-          );
-        })}
-      </svg>
-
-      {/* === СРЕДНИЙ ЛЕС (более тёмный и высокий) === */}
-      <svg
-        className="absolute left-0 right-0 w-full"
-        style={{ bottom: 40, height: 260 }}
-        viewBox="0 0 1200 260"
-        preserveAspectRatio="none"
-      >
-        {Array.from({ length: 26 }).map((_, i) => {
-          const x = i * 48 + (i % 3) * 12;
-          const h = 100 + (i % 6) * 32;
-          return (
-            <polygon
-              key={`mt-${i}`}
-              points={`${x},260 ${x - 26},${260 - h} ${x + 26},${260 - h}`}
-              fill="#020002"
-            />
-          );
-        })}
-      </svg>
-
-      {/* === ЗЕМЛЯ / ХОЛМ === */}
-      <div
-        className="absolute left-0 right-0 bottom-0"
-        style={{
-          height: 80,
-          background:
-            'linear-gradient(to bottom, #000000 0%, #05000a 40%, #000000 100%)',
-        }}
-      />
-
-      {/* === КЛАДБИЩЕ — НАДГРОБИЯ РАЗНОГО РАЗМЕРА === */}
-      {[
-        { x: 8,  w: 26, h: 38, rot: -3 },
-        { x: 24, w: 20, h: 30, rot: 2 },
-        { x: 38, w: 32, h: 46, rot: -1 },
-        { x: 56, w: 22, h: 34, rot: 4 },
-        { x: 70, w: 28, h: 42, rot: -2 },
-        { x: 84, w: 24, h: 36, rot: 3 },
-        { x: 94, w: 18, h: 28, rot: -4 },
-      ].map((t, i) => (
-        <div
-          key={`tomb-${i}`}
-          className="absolute"
-          style={{
-            left: `${t.x}%`,
-            bottom: 6 + (i % 2) * 4,
-            width: t.w,
-            height: t.h,
-            transform: `rotate(${t.rot}deg)`,
-            filter: 'drop-shadow(0 0 6px rgba(0, 0, 0, 0.8))',
-          }}
-        >
-          <svg viewBox="0 0 30 46" width="100%" height="100%" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id={`tg-${i}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#15151c" />
-                <stop offset="100%" stopColor="#050508" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M3 46 L3 16 Q3 3 15 3 Q27 3 27 16 L27 46 Z"
-              fill={`url(#tg-${i})`}
-              stroke="#252530"
-              strokeWidth="0.5"
-            />
-            {/* Крест */}
-            <line x1="15" y1="12" x2="15" y2="28" stroke="#2a2a35" strokeWidth="1.8" />
-            <line x1="9" y1="20" x2="21" y2="20" stroke="#2a2a35" strokeWidth="1.8" />
-            {/* Трещины */}
-            <path
-              d={`M${8 + i} 5 L${12 + i} 14 L${9 + i} 22`}
-              stroke="#0a0a10"
-              strokeWidth="0.6"
-              fill="none"
-              opacity="0.9"
-            />
-          </svg>
-        </div>
-      ))}
-
-      {/* === СВЕЧИ НА НАДГРОБИЯХ === */}
-      {[
-        { x: 12, y: 46 },
-        { x: 42, y: 52 },
-        { x: 74, y: 50 },
-      ].map((c, i) => (
-        <motion.div
-          key={`candle-${i}`}
-          className="absolute"
-          style={{ left: `${c.x}%`, bottom: c.y, width: 6, height: 14 }}
-          animate={{ opacity: [0.85, 1, 0.85] }}
-          transition={{ duration: 1.5 + i * 0.3, repeat: Infinity }}
-        >
-          {/* Огонёк */}
-          <motion.div
-            className="absolute rounded-full"
-            style={{
-              left: '50%',
-              top: -4,
-              transform: 'translateX(-50%)',
-              width: 5,
-              height: 8,
-              background:
-                'radial-gradient(ellipse at 50% 80%, #fff3b0 0%, #ff9020 40%, #ff4400 70%, transparent 100%)',
-              filter: 'blur(0.5px)',
-            }}
-            animate={{
-              scaleY: [1, 1.3, 0.9, 1.15, 1],
-              scaleX: [1, 0.9, 1.1, 0.95, 1],
-            }}
-            transition={{ duration: 0.8 + i * 0.15, repeat: Infinity }}
-          />
-          {/* Свечение вокруг огня */}
-          <div
-            className="absolute rounded-full"
-            style={{
-              left: '50%',
-              top: -8,
-              transform: 'translateX(-50%)',
-              width: 40,
-              height: 40,
-              background:
-                'radial-gradient(circle, rgba(255, 150, 40, 0.4) 0%, transparent 60%)',
-              filter: 'blur(8px)',
-            }}
-          />
-          {/* Свеча */}
-          <div
-            className="absolute bottom-0 left-0 right-0 rounded-sm"
-            style={{
-              height: 12,
-              background: 'linear-gradient(180deg, #e0d8c8 0%, #a09080 100%)',
-            }}
-          />
-        </motion.div>
-      ))}
-
-      {/* === СВЕТЯЩИЕСЯ ТЫКВЫ — стильные, не мультяшные === */}
-      {[
-        { x: 6,  size: 52, delay: 0.0, bottom: 22, hue: 20 },
-        { x: 20, size: 38, delay: 0.4, bottom: 18, hue: 15 },
-        { x: 48, size: 70, delay: 0.8, bottom: 26, hue: 25 },
-        { x: 66, size: 44, delay: 1.2, bottom: 20, hue: 18 },
-        { x: 88, size: 58, delay: 1.6, bottom: 24, hue: 22 },
-      ].map((p) => (
-        <motion.div
-          key={`pump-${p.x}`}
-          className="absolute"
-          style={{
-            left: `${p.x}%`,
-            bottom: p.bottom,
-            width: p.size,
-            height: p.size,
-          }}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{ delay: p.delay, duration: 1.5, ease: 'easeOut' }}
-        >
-          {/* Внешнее свечение */}
-          <motion.div
-            className="absolute rounded-full"
-            style={{
-              inset: -25,
-              background:
-                'radial-gradient(circle, rgba(255, 100, 20, 0.5) 0%, rgba(200, 40, 0, 0.2) 40%, transparent 70%)',
-              filter: 'blur(12px)',
-            }}
-            animate={{ opacity: [0.6, 1, 0.6], scale: [1, 1.08, 1] }}
-            transition={{ duration: 2.4, repeat: Infinity, delay: p.delay }}
-          />
-          <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ position: 'relative' }}>
-            <defs>
-              <radialGradient id={`pk-${p.x}`} cx="50%" cy="60%" r="55%">
-                <stop offset="0%" stopColor={`hsl(${p.hue + 20}, 100%, 65%)`} />
-                <stop offset="45%" stopColor={`hsl(${p.hue}, 95%, 45%)`} />
-                <stop offset="85%" stopColor={`hsl(${p.hue}, 80%, 22%)`} />
-                <stop offset="100%" stopColor="#200800" />
-              </radialGradient>
-            </defs>
-            {/* Тело тыквы — 3 сегмента */}
-            <ellipse cx="30" cy="60" rx="20" ry="32" fill={`url(#pk-${p.x})`} opacity="0.9" />
-            <ellipse cx="70" cy="60" rx="20" ry="32" fill={`url(#pk-${p.x})`} opacity="0.9" />
-            <ellipse cx="50" cy="60" rx="22" ry="34" fill={`url(#pk-${p.x})`} />
-            {/* Бороздки */}
-            <ellipse cx="50" cy="60" rx="14" ry="34" fill="none" stroke="#5a1a00" strokeWidth="0.6" opacity="0.6" />
-            <ellipse cx="50" cy="60" rx="28" ry="34" fill="none" stroke="#5a1a00" strokeWidth="0.5" opacity="0.4" />
-            {/* Хвостик */}
-            <rect x="47" y="20" width="6" height="10" rx="2" fill="#2a1200" />
-            <path d="M50 20 Q56 12 62 15" stroke="#1a0a00" strokeWidth="2" fill="none" strokeLinecap="round" />
-            {/* Зловещие глаза — не треугольники, а миндалевидные */}
-            <path d="M28 55 Q35 48 42 55 Q35 58 28 55 Z" fill="#000" />
-            <path d="M58 55 Q65 48 72 55 Q65 58 58 55 Z" fill="#000" />
-            {/* Внутренний свет в глазах */}
-            <path d="M31 54 Q36 51 39 54 Q36 56 31 54 Z" fill="#ffb055" opacity="0.9" />
-            <path d="M61 54 Q66 51 69 54 Q66 56 61 54 Z" fill="#ffb055" opacity="0.9" />
-            {/* Злой рот */}
-            <path
-              d="M30 72 Q36 80 42 72 Q48 80 54 72 Q60 80 66 72"
-              stroke="#000"
-              strokeWidth="3.5"
-              fill="none"
-              strokeLinejoin="round"
-            />
-            {/* Зубы */}
-            <polygon points="36,72 38,78 40,72" fill="#ffddaa" opacity="0.7" />
-            <polygon points="48,72 50,78 52,72" fill="#ffddaa" opacity="0.7" />
-            <polygon points="60,72 62,78 64,72" fill="#ffddaa" opacity="0.7" />
-          </svg>
-        </motion.div>
-      ))}
-
-      {/* === ПРИЗРАКИ — эфирные, тонкие === */}
-      {[
-        { x: 18, y: 30, delay: 0, dur: 14, scale: 1 },
-        { x: 76, y: 45, delay: 4, dur: 18, scale: 0.85 },
-        { x: 52, y: 22, delay: 8, dur: 16, scale: 0.7 },
-      ].map((g, i) => (
-        <motion.div
-          key={`ghost-${i}`}
-          className="absolute"
-          style={{
-            left: `${g.x}%`,
-            top: `${g.y}%`,
-            width: 70 * g.scale,
-            height: 100 * g.scale,
-          }}
-          animate={{
-            y: [-15, 15, -15],
-            x: [-8, 8, -8],
-            opacity: [0.05, 0.18, 0.05],
-          }}
-          transition={{
-            duration: g.dur,
-            repeat: Infinity,
-            ease: 'easeInOut',
-            delay: g.delay,
-          }}
-        >
-          <svg viewBox="0 0 70 100" width="100%" height="100%">
-            <defs>
-              <radialGradient id={`gr-${i}`} cx="50%" cy="30%" r="70%">
-                <stop offset="0%" stopColor="#f0f0ff" stopOpacity="1" />
-                <stop offset="60%" stopColor="#a0a0d0" stopOpacity="0.5" />
-                <stop offset="100%" stopColor="#505080" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <path
-              d="M35 5 Q10 5 10 40 L10 90 Q16 84 22 90 Q28 84 35 90 Q42 84 48 90 Q54 84 60 90 L60 40 Q60 5 35 5 Z"
-              fill={`url(#gr-${i})`}
-              filter="blur(2px)"
-            />
-            {/* Тонкие тёмные глаза */}
-            <ellipse cx="24" cy="38" rx="3.5" ry="5" fill="#0a0a15" opacity="0.6" />
-            <ellipse cx="46" cy="38" rx="3.5" ry="5" fill="#0a0a15" opacity="0.6" />
-            <ellipse cx="35" cy="56" rx="3" ry="5" fill="#0a0a15" opacity="0.35" />
-          </svg>
-        </motion.div>
-      ))}
-
-      {/* === ВОРОН НА ВЕТКЕ (силуэт) === */}
-      <div className="absolute" style={{ left: '10%', top: '18%', width: 60, height: 80 }}>
-        {/* Ветка */}
-        <svg
-          className="absolute"
-          style={{ left: -20, top: 50, width: 140, height: 30 }}
-          viewBox="0 0 140 30"
-        >
-          <path
-            d="M0 20 Q40 15 70 18 Q100 22 140 15"
-            stroke="#050008"
-            strokeWidth="3"
-            fill="none"
-          />
-          <path
-            d="M70 18 Q85 5 100 8"
-            stroke="#050008"
-            strokeWidth="2"
-            fill="none"
-          />
+          <ellipse cx="72" cy="72" rx="13" ry="11" fill="url(#craterShadow)" opacity="0.55" />
+          <ellipse cx="72" cy="72" rx="13" ry="11" fill="none" stroke="#a08870" strokeWidth="0.6" opacity="0.6" />
+          <ellipse cx="105" cy="62" rx="6" ry="5" fill="url(#craterShadow)" opacity="0.5" />
+          <ellipse cx="85" cy="108" rx="15" ry="12" fill="url(#craterShadow)" opacity="0.5" />
+          <ellipse cx="85" cy="108" rx="15" ry="12" fill="none" stroke="#a08870" strokeWidth="0.5" opacity="0.5" />
+          <ellipse cx="120" cy="100" rx="7" ry="6" fill="url(#craterShadow)" opacity="0.45" />
+          <ellipse cx="65" cy="108" rx="5" ry="4" fill="url(#craterShadow)" opacity="0.4" />
+          <ellipse cx="105" cy="128" rx="9" ry="7" fill="url(#craterShadow)" opacity="0.45" />
+          <ellipse cx="55" cy="60" rx="4" ry="3" fill="url(#craterShadow)" opacity="0.4" />
         </svg>
-        {/* Ворон */}
-        <motion.div
-          className="absolute"
-          style={{ left: 10, top: 20, width: 45, height: 55 }}
-          animate={{ rotate: [-1, 1.5, -1] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <svg viewBox="0 0 45 55" width="100%" height="100%">
-            <ellipse cx="22" cy="32" rx="11" ry="15" fill="#020002" />
-            <circle cx="22" cy="15" r="8" fill="#020002" />
-            <polygon points="30,15 40,13 30,18" fill="#3a2510" />
-            {/* Глаз — единственная красная точка */}
-            <circle cx="25" cy="14" r="1.3" fill="#dd1010" />
-            <circle cx="25" cy="14" r="0.5" fill="#ff6060" />
-            {/* Хвост */}
-            <path d="M22 46 L18 55 L22 52 L26 55 Z" fill="#020002" />
-          </svg>
-        </motion.div>
       </div>
 
-      {/* === ЛЕТУЧИЕ МЫШИ — силуэты без глаз === */}
+      {/* ===== Силуэт леса внизу ===== */}
+      <svg
+        className="absolute bottom-0 left-0 w-full"
+        viewBox="0 0 1200 320"
+        preserveAspectRatio="none"
+        style={{ height: '38vh' }}
+      >
+        <defs>
+          <linearGradient id="treeFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0a0510" />
+            <stop offset="100%" stopColor="#000000" />
+          </linearGradient>
+        </defs>
+        {/* Дальний ряд ёлок */}
+        <g fill="#0d0618" opacity="0.75">
+          {Array.from({ length: 40 }).map((_, i) => {
+            const x = i * 30 + Math.sin(i) * 12;
+            const h = 90 + Math.abs(Math.sin(i * 1.7)) * 70;
+            const w = 24 + Math.abs(Math.cos(i)) * 12;
+            return (
+              <path
+                key={i}
+                d={`M${x},${320 - h} L${x + w / 2},${320 - h * 0.55} L${x + w},${320 - h * 0.55} L${x + w / 2 + 4},${320} L${x + w / 2 - 4},${320} Z`}
+              />
+            );
+          })}
+        </g>
+        {/* Ближний ряд — крупнее и темнее */}
+        <g fill="url(#treeFade)">
+          {Array.from({ length: 25 }).map((_, i) => {
+            const x = i * 50 + Math.sin(i * 2.3) * 20;
+            const h = 140 + Math.abs(Math.sin(i * 1.2)) * 100;
+            const w = 36 + Math.abs(Math.cos(i * 1.5)) * 18;
+            return (
+              <path
+                key={i}
+                d={`M${x},${320 - h} L${x + w / 2},${320 - h * 0.5} L${x + w},${320 - h * 0.5} L${x + w / 2 + 6},${320} L${x + w / 2 - 6},${320} Z`}
+              />
+            );
+          })}
+        </g>
+      </svg>
+
+      {/* ===== Туман — 3 слоя ===== */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-[45vh]"
+        style={{
+          background:
+            'linear-gradient(0deg, rgba(120,60,90,0.28) 0%, rgba(60,20,50,0.15) 40%, transparent 100%)',
+          animation: 'fogDrift1 60s ease-in-out infinite alternate',
+          filter: 'blur(20px)',
+        }}
+      />
+      <div
+        className="absolute bottom-0 left-0 right-0 h-[30vh]"
+        style={{
+          background:
+            'linear-gradient(0deg, rgba(80,40,80,0.35) 0%, transparent 100%)',
+          animation: 'fogDrift2 45s ease-in-out infinite alternate',
+          filter: 'blur(28px)',
+        }}
+      />
+
+      {/* ===== Летучие мыши ===== */}
       {bats.map((b) => (
-        <motion.div
+        <div
           key={b.id}
-          initial={{
-            left: `${b.startX}%`,
-            top: `${b.startY}%`,
-            opacity: 0,
-          }}
-          animate={{
-            left: `${b.endX}%`,
-            top: `${b.endY}%`,
-            opacity: [0, 0.85, 0.85, 0],
-          }}
-          transition={{
-            duration: b.duration,
-            repeat: Infinity,
-            delay: b.delay,
-            ease: 'linear',
-          }}
+          className="absolute"
           style={{
-            position: 'absolute',
-            transform: `scale(${b.scale})`,
-            filter: 'drop-shadow(0 0 8px rgba(80, 20, 120, 0.6))',
+            top: `${b.top}%`,
+            left: b.flip ? 'auto' : '-50px',
+            right: b.flip ? '-50px' : 'auto',
+            width: b.size,
+            animation: `batFly${b.flip ? 'R' : 'L'} ${b.duration}s linear ${b.delay}s infinite`,
           }}
         >
-          <svg width="40" height="20" viewBox="0 0 40 20">
+          <svg viewBox="0 0 100 50" width="100%" height="100%">
             <path
-              d="M20 10 Q14 2 4 4 Q10 8 8 14 Q14 12 20 10 Q26 12 32 14 Q30 8 36 4 Q26 2 20 10 Z"
-              fill="#020005"
+              d="M50 25 Q43 14 32 10 Q36 18 42 22 Q32 18 22 20 Q28 25 38 27 Q30 30 20 38 Q32 34 42 28 Q45 34 50 38 Q55 34 58 28 Q68 34 80 38 Q70 30 62 27 Q72 25 78 20 Q68 18 58 22 Q64 18 68 10 Q57 14 50 25 Z"
+              fill="#000000"
+              opacity="0.8"
             />
           </svg>
-        </motion.div>
+        </div>
       ))}
 
-      {/* === ИСКРЫ / УГЛИ, ВЗЛЕТАЮЩИЕ ВВЕРХ === */}
-      {embers.map((e) => (
-        <motion.div
-          key={`ember-${e.id}`}
+      {/* ===== Паутина в левом верхнем углу + паук ===== */}
+      <svg
+        className="absolute top-0 left-0 opacity-30"
+        width="200"
+        height="200"
+        viewBox="0 0 200 200"
+      >
+        <g stroke="#c8b4a0" strokeWidth="0.7" fill="none">
+          <line x1="0" y1="0" x2="200" y2="55" />
+          <line x1="0" y1="0" x2="190" y2="95" />
+          <line x1="0" y1="0" x2="150" y2="155" />
+          <line x1="0" y1="0" x2="90" y2="195" />
+          <line x1="0" y1="0" x2="200" y2="20" />
+          <path d="M35 18 Q58 38 52 62" />
+          <path d="M75 38 Q102 62 92 102" />
+          <path d="M115 62 Q148 90 128 145" />
+          <path d="M155 88 Q180 118 155 168" />
+        </g>
+        {/* Паук */}
+        <g transform="translate(48, 52)" fill="#0a0208">
+          <ellipse cx="0" cy="0" rx="4" ry="5" />
+          <ellipse cx="0" cy="-5" rx="2.5" ry="2.5" />
+          <line x1="-3" y1="-2" x2="-9" y2="-6" stroke="#0a0208" strokeWidth="0.8" />
+          <line x1="-3" y1="0" x2="-10" y2="0" stroke="#0a0208" strokeWidth="0.8" />
+          <line x1="-3" y1="2" x2="-9" y2="6" stroke="#0a0208" strokeWidth="0.8" />
+          <line x1="3" y1="-2" x2="9" y2="-6" stroke="#0a0208" strokeWidth="0.8" />
+          <line x1="3" y1="0" x2="10" y2="0" stroke="#0a0208" strokeWidth="0.8" />
+          <line x1="3" y1="2" x2="9" y2="6" stroke="#0a0208" strokeWidth="0.8" />
+        </g>
+      </svg>
+
+      {/* ===== Паутина в правом нижнем углу ===== */}
+      <svg
+        className="absolute bottom-0 right-0 opacity-25 rotate-180"
+        width="150"
+        height="150"
+        viewBox="0 0 150 150"
+      >
+        <g stroke="#c8b4a0" strokeWidth="0.6" fill="none">
+          <line x1="0" y1="0" x2="150" y2="40" />
+          <line x1="0" y1="0" x2="130" y2="75" />
+          <line x1="0" y1="0" x2="85" y2="125" />
+          <line x1="0" y1="0" x2="40" y2="148" />
+          <path d="M28 12 Q45 28 42 48" />
+          <path d="M58 28 Q78 48 70 80" />
+          <path d="M90 45 Q115 70 100 115" />
+        </g>
+      </svg>
+
+      {/* ===== Искры / пепел ===== */}
+      {particles.map((p) => (
+        <div
+          key={p.id}
           className="absolute rounded-full"
           style={{
-            left: `${e.x}%`,
-            bottom: 0,
-            width: e.size,
-            height: e.size,
-            background: '#ff8020',
-            boxShadow: '0 0 6px #ff8020, 0 0 12px #ff4400',
-          }}
-          animate={{
-            y: [-10, -window.innerHeight * 1.1],
-            opacity: [0, 0.9, 0.7, 0],
-            x: [0, (Math.random() - 0.5) * 60],
-          }}
-          transition={{
-            duration: e.duration,
-            repeat: Infinity,
-            delay: e.delay,
-            ease: 'linear',
+            left: `${p.left}%`,
+            bottom: '-10px',
+            width: p.size,
+            height: p.size,
+            background:
+              'radial-gradient(circle, rgba(255,180,100,0.9) 0%, rgba(255,120,40,0.4) 60%, transparent 100%)',
+            boxShadow: '0 0 6px rgba(255,140,60,0.8)',
+            animation: `emberRise ${p.duration}s linear ${p.delay}s infinite`,
           }}
         />
       ))}
 
-      {/* === ЗЕРНО ПЛЁНКИ (шум) === */}
+      {/* ===== Свечи в углах ===== */}
+      <div className="absolute bottom-[22vh] left-[6%]" style={{ width: 4, height: 22 }}>
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full"
+          style={{
+            width: 6,
+            height: 12,
+            background: 'radial-gradient(circle, #ffb347 0%, #ff6b00 60%, transparent 100%)',
+            boxShadow: '0 0 18px rgba(255,140,40,0.9), 0 0 36px rgba(255,100,20,0.5)',
+            animation: 'candleFlicker 2.3s ease-in-out infinite',
+          }}
+        />
+        <div className="absolute bottom-0 left-0 w-full h-3 rounded" style={{ background: '#c8b896' }} />
+      </div>
+
+      {/* ===== Виньетка ===== */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-[0.08] mix-blend-overlay"
+        className="absolute inset-0"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-          backgroundSize: '180px 180px',
+          background:
+            'radial-gradient(ellipse 90% 80% at 50% 50%, transparent 30%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.85) 100%)',
         }}
       />
 
-      {/* === ВИНЬЕТКА — тёмные края для кинематографичности === */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse 90% 80% at 50% 50%, transparent 30%, rgba(0, 0, 0, 0.5) 75%, rgba(0, 0, 0, 0.9) 100%)',
-        }}
-      />
-
-      {/* === ВЕРХНЯЯ ВУАЛЬ — лёгкое затемнение сверху для контраста с UI === */}
-      <div
-        className="absolute top-0 left-0 right-0 pointer-events-none"
-        style={{
-          height: 200,
-          background:
-            'linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 100%)',
-        }}
-      />
+      {/* ===== Анимации ===== */}
+      <style>{`
+        @keyframes fogDrift1 {
+          0% { transform: translateX(-6%) }
+          100% { transform: translateX(6%) }
+        }
+        @keyframes fogDrift2 {
+          0% { transform: translateX(5%) }
+          100% { transform: translateX(-5%) }
+        }
+        @keyframes batFlyL {
+          0% { transform: translateX(0) translateY(0) scale(0.8) }
+          25% { transform: translateX(28vw) translateY(-30px) scale(1) }
+          50% { transform: translateX(55vw) translateY(20px) scale(0.9) }
+          75% { transform: translateX(82vw) translateY(-25px) scale(1.1) }
+          100% { transform: translateX(110vw) translateY(0) scale(0.8) }
+        }
+        @keyframes batFlyR {
+          0% { transform: translateX(0) translateY(0) scale(0.8) }
+          25% { transform: translateX(-28vw) translateY(-30px) scale(1) }
+          50% { transform: translateX(-55vw) translateY(20px) scale(0.9) }
+          75% { transform: translateX(-82vw) translateY(-25px) scale(1.1) }
+          100% { transform: translateX(-110vw) translateY(0) scale(0.8) }
+        }
+        @keyframes emberRise {
+          0% { transform: translateY(0) scale(1); opacity: 0 }
+          10% { opacity: 1 }
+          90% { opacity: 0.6 }
+          100% { transform: translateY(-90vh) translateX(30px) scale(0.4); opacity: 0 }
+        }
+        @keyframes candleFlicker {
+          0%, 100% { transform: translateX(-50%) scale(1) }
+          25% { transform: translateX(-50%) scale(1.08, 0.95) }
+          50% { transform: translateX(-50%) scale(0.95, 1.05) }
+          75% { transform: translateX(-50%) scale(1.05, 0.98) }
+        }
+      `}</style>
     </div>
   );
 }
