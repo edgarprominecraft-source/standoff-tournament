@@ -8,6 +8,16 @@ type Props = {
   onMatchClick?: (match: BracketMatch) => void;
 };
 
+function getRoundLabel(rIdx: number, totalRounds: number): string {
+  const fromEnd = totalRounds - rIdx - 1;
+  if (fromEnd === 0) return 'Финал';
+  if (fromEnd === 1) return '1/2';
+  if (fromEnd === 2) return '1/4';
+  if (fromEnd === 3) return '1/8';
+  if (fromEnd === 4) return '1/16';
+  return roundName(rIdx + 1, totalRounds);
+}
+
 export default function BigBracket({ rounds, onMatchClick }: Props) {
   if (rounds.length === 0) {
     return (
@@ -19,107 +29,63 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
   }
 
   const totalRounds = rounds.length;
+  const finalRoundIdx = totalRounds - 1;
 
-  const getRoundLabel = (rIdx: number) => {
-    const fromEnd = totalRounds - rIdx - 1;
-    if (fromEnd === 0) return 'Финал';
-    if (fromEnd === 1) return '1/2';
-    if (fromEnd === 2) return '1/4';
-    if (fromEnd === 3) return '1/8';
-    return roundName(rIdx + 1, totalRounds);
-  };
+  // Разбиваем каждую non-final раунд на левую/правую половины
+  const leftRounds: { rIdx: number; matches: BracketMatch[] }[] = [];
+  const rightRounds: { rIdx: number; matches: BracketMatch[] }[] = [];
+
+  for (let r = 0; r < finalRoundIdx; r++) {
+    const round = rounds[r];
+    const half = Math.ceil(round.length / 2);
+    leftRounds.push({ rIdx: r, matches: round.slice(0, half) });
+    rightRounds.push({ rIdx: r, matches: round.slice(half) });
+  }
+
+  // Правая сторона отображается в обратном порядке (ближе к центру — меньшие раунды)
+  const rightRoundsOrdered = [...rightRounds].reverse();
+
+  const finalMatch = rounds[finalRoundIdx]?.[0];
+  const champion = finalMatch?.winner;
 
   return (
     <div className="bg-white rounded-3xl border border-border p-4 shadow-card overflow-x-auto">
-      {/* Заголовки раундов */}
-      <div className="flex gap-3 mb-4 min-w-max">
-        {rounds.map((round, rIdx) => (
-          <div key={rIdx} className="flex-shrink-0" style={{ width: rIdx === 0 ? 200 : 180 }}>
-            <div className="text-center">
-              <div className="text-orange text-[11px] font-black uppercase tracking-widest">
-                {getRoundLabel(rIdx)}
-              </div>
-              <div className="text-muted text-[10px] font-bold mt-0.5">
-                {round.length} {round.length === 1 ? 'матч' : 'матчей'}
-              </div>
-            </div>
-          </div>
-        ))}
-        <div className="flex-shrink-0 w-[140px]">
+      <div className="flex items-stretch min-w-max gap-2">
+        {/* ===== ЛЕВАЯ СТОРОНА ===== */}
+        <div className="flex gap-2">
+          {leftRounds.map((r) => (
+            <BracketColumn
+              key={`L-${r.rIdx}`}
+              matches={r.matches}
+              label={getRoundLabel(r.rIdx, totalRounds)}
+              side="left"
+              onMatchClick={onMatchClick}
+            />
+          ))}
+        </div>
+
+        {/* ===== ЦЕНТР: ФИНАЛ + ЧЕМПИОН ===== */}
+        <div className="flex flex-col justify-center gap-3 px-2">
           <div className="text-center">
             <div className="text-orange text-[11px] font-black uppercase tracking-widest">
-              Победитель
+              Финал
             </div>
-            <div className="text-muted text-[10px] font-bold mt-0.5">🏆</div>
+            <div className="text-muted text-[10px] font-bold mt-0.5">1 матч</div>
           </div>
-        </div>
-      </div>
 
-      {/* Сетка */}
-      <div className="flex gap-3 min-w-max items-stretch">
-        {rounds.map((round, rIdx) => {
-          const isFirstRound = rIdx === 0;
-          const isLastRound = rIdx === rounds.length - 1;
+          <div className="w-[200px]">
+            <MatchCard
+              match={finalMatch}
+              label="Финал"
+              onClick={
+                finalMatch?.matchId && onMatchClick
+                  ? () => onMatchClick(finalMatch)
+                  : undefined
+              }
+            />
+          </div>
 
-          return (
-            <div
-              key={rIdx}
-              className="flex-shrink-0 flex flex-col justify-around"
-              style={{ width: isFirstRound ? 200 : 180 }}
-            >
-              {round.map((match, mIdx) => {
-                const hasNext = !isLastRound;
-
-                return (
-                  <div
-                    key={mIdx}
-                    className="relative flex items-center"
-                    style={{
-                      flex: 1,
-                      minHeight: isFirstRound ? 80 : 80,
-                    }}
-                  >
-                    <div className="flex-1 z-10">
-                      <MatchCard
-                        match={match}
-                        label={`M${mIdx + 1}`}
-                        onClick={
-                          match.matchId && onMatchClick
-                            ? () => onMatchClick(match)
-                            : undefined
-                        }
-                      />
-                    </div>
-
-                    {hasNext && (
-                      <>
-                        <div
-                          className="absolute bg-orange/40"
-                          style={{ right: -12, top: '50%', width: 12, height: 2 }}
-                        />
-                        {mIdx % 2 === 0 && (
-                          <div
-                            className="absolute bg-orange/40"
-                            style={{ right: -12, top: '50%', width: 2, height: 'calc(50% + 40px)' }}
-                          />
-                        )}
-                        {mIdx % 2 === 1 && (
-                          <div
-                            className="absolute bg-orange/40"
-                            style={{ right: -12, bottom: '50%', width: 2, height: 'calc(50% + 40px)' }}
-                          />
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-
-        {/* Чемпион */}
-        <div className="flex-shrink-0 flex flex-col justify-center" style={{ width: 140 }}>
+          {/* Чемпион */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -129,9 +95,9 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
             <div className="text-white font-black text-xs uppercase tracking-wider">
               Чемпион
             </div>
-            {rounds[rounds.length - 1]?.[0]?.winner ? (
+            {champion ? (
               <div className="text-white text-sm font-bold mt-2 truncate">
-                {rounds[rounds.length - 1][0].winner!.name || '—'}
+                {champion.name || '—'}
               </div>
             ) : (
               <div className="text-white/60 text-[10px] mt-2 font-semibold">
@@ -140,6 +106,72 @@ export default function BigBracket({ rounds, onMatchClick }: Props) {
             )}
           </motion.div>
         </div>
+
+        {/* ===== ПРАВАЯ СТОРОНА (обратный порядок) ===== */}
+        <div className="flex gap-2">
+          {rightRoundsOrdered.map((r) => (
+            <BracketColumn
+              key={`R-${r.rIdx}`}
+              matches={r.matches}
+              label={getRoundLabel(r.rIdx, totalRounds)}
+              side="right"
+              onMatchClick={onMatchClick}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== Колонка раунда =====
+function BracketColumn({
+  matches,
+  label,
+  side,
+  onMatchClick,
+}: {
+  matches: BracketMatch[];
+  label: string;
+  side: 'left' | 'right';
+  onMatchClick?: (match: BracketMatch) => void;
+}) {
+  return (
+    <div className="flex-shrink-0 flex flex-col" style={{ width: 200 }}>
+      {/* Заголовок */}
+      <div className="text-center mb-3">
+        <div className="text-orange text-[11px] font-black uppercase tracking-widest">
+          {label}
+        </div>
+        <div className="text-muted text-[10px] font-bold mt-0.5">
+          {matches.length} {matches.length === 1 ? 'матч' : 'матчей'}
+        </div>
+      </div>
+
+      {/* Матчи распределены по вертикали */}
+      <div className="flex-1 flex flex-col justify-around gap-2">
+        {matches.map((m, mIdx) => (
+          <div key={mIdx} className="relative">
+            <MatchCard
+              match={m}
+              label={`M${mIdx + 1}`}
+              onClick={
+                m.matchId && onMatchClick ? () => onMatchClick(m) : undefined
+              }
+            />
+
+            {/* Линия к следующему раунду */}
+            <div
+              className="absolute bg-orange/40"
+              style={{
+                [side === 'left' ? 'right' : 'left']: -8,
+                top: '50%',
+                width: 8,
+                height: 2,
+              }}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -151,10 +183,22 @@ function MatchCard({
   label,
   onClick,
 }: {
-  match: BracketMatch;
+  match: BracketMatch | undefined;
   label: string;
   onClick?: () => void;
 }) {
+  if (!match) {
+    return (
+      <div className="bg-bg2 border border-dashed border-border2 rounded-xl p-2 text-center">
+        <div className="text-[9px] text-muted font-bold mb-1 flex items-center justify-center gap-1">
+          <Swords className="w-2.5 h-2.5" />
+          {label}
+        </div>
+        <div className="text-[10px] text-muted2 font-bold py-2">Ожидание</div>
+      </div>
+    );
+  }
+
   return (
     <motion.button
       onClick={onClick}
@@ -172,7 +216,6 @@ function MatchCard({
         {label}
       </div>
 
-      {/* Клан 1 */}
       <TeamRow
         team={match.team1}
         isWinner={match.winner?.id === match.team1?.id && !!match.winner}
@@ -180,7 +223,6 @@ function MatchCard({
 
       <div className="h-px bg-border mx-1 my-1" />
 
-      {/* Клан 2 */}
       <TeamRow
         team={match.team2}
         isWinner={match.winner?.id === match.team2?.id && !!match.winner}
@@ -189,7 +231,7 @@ function MatchCard({
   );
 }
 
-// ===== Строка клана в матче =====
+// ===== Строка клана =====
 function TeamRow({
   team,
   isWinner,
@@ -212,7 +254,6 @@ function TeamRow({
 
   return (
     <div className="flex items-center gap-1.5">
-      {/* Логотип клана */}
       <div className="w-6 h-6 rounded-md bg-gradient-to-br from-orange to-orange2 flex items-center justify-center overflow-hidden flex-shrink-0">
         {team.logo_url ? (
           <img src={team.logo_url} alt="" className="w-full h-full object-cover" />
@@ -220,8 +261,6 @@ function TeamRow({
           <Shield className="w-3 h-3 text-white" strokeWidth={2.5} />
         )}
       </div>
-
-      {/* Название клана */}
       <div
         className={`text-[10px] font-bold truncate flex-1 ${
           isWinner ? 'text-orange' : 'text-black'
@@ -229,8 +268,6 @@ function TeamRow({
       >
         {team.name || 'Клан'}
       </div>
-
-      {/* Галочка победителя */}
       {isWinner && (
         <div className="w-3 h-3 rounded-full bg-orange flex items-center justify-center flex-shrink-0">
           <span className="text-white text-[7px] font-black">✓</span>
