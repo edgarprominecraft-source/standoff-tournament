@@ -9,6 +9,7 @@ import { supabase, type User } from '../supabase';
 import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
 import { PROFILE_BANNERS, updateProfile, uploadAvatar, uploadBanner } from '../lib/profile';
 import RankBadge from './RankBadge';
+import FriendsModal from './FriendsModal';
 
 type Props = {
   user: User;
@@ -26,6 +27,7 @@ export default function Profile({ user, setUser }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const [showEditNick, setShowEditNick] = useState(false);
   const [showFullProfile, setShowFullProfile] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
   const [stats, setStats] = useState({ matches: 0, wins: 0, losses: 0, kills: 0, deaths: 0 });
   const [friendsCount, setFriendsCount] = useState(0);
   const [clanName, setClanName] = useState<string | null>(null);
@@ -276,7 +278,9 @@ export default function Profile({ user, setUser }: Props) {
         transition={{ delay: 0.1 }}
         className="grid grid-cols-3 gap-2"
       >
-        <QuickBlock icon={UsersIcon} label="Друзья" value={friendsCount} />
+        <button onClick={() => { haptic('light'); setShowFriends(true); }} className="text-left w-full">
+          <QuickBlock icon={UsersIcon} label="Друзья" value={friendsCount} />
+        </button>
         <QuickBlock icon={Swords} label="Клан" value={clanName || '—'} small />
         <QuickBlock icon={Coins} label="Жетоны" value={user.tokens || 0} />
       </motion.div>
