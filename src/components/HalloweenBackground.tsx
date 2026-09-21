@@ -66,7 +66,7 @@ export default function HalloweenBackground() {
   }, []);
 
   return (
-    <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden select-none">
+    <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden select-none">
       {/* ===== Базовый фон: глубокая ночь с бордово-фиолетовым свечением ===== */}
       <div
         className="absolute inset-0"
