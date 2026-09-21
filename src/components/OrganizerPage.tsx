@@ -9,9 +9,11 @@ import {
 import { type User, supabase } from '../supabase';
 import { buildBracket, type BracketMatch, type BracketTeam } from '../lib/bracket';
 import { haptic, getTelegramUser } from '../lib/telegram';
+import { isAdmin } from '../lib/admin';
 import BigBracket from './tournament/BigBracket';
 import EmptyBracketPreview from './tournament/EmptyBracketPreview';
 import TeamInfoModal from './tournament/TeamInfoModal';
+import MatchChat from './tournament/MatchChat';
 import SponsorModal, { type Sponsor } from './tournament/SponsorModal';
 import Lobby from './tournament/Lobby';
 
@@ -35,14 +37,16 @@ export default function OrganizerPage({ user }: Props) {
   const [loading, setLoading] = useState(true);
   const [inLobby, setInLobby] = useState<Tournament | null>(null);
   const [sponsorModal, setSponsorModal] = useState<{ tournament: Tournament; sponsors: Sponsor[] } | null>(null);
+  const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
     (async () => {
       const list = await getAllOrganizers();
       setOrganizers(list);
+      setAdmin(await isAdmin(user.user_id));
       setLoading(false);
     })();
-  }, []);
+  }, [user.user_id]);
 
   const openOrganizer = async (org: Organizer) => {
     setSelected(org);
@@ -74,7 +78,6 @@ export default function OrganizerPage({ user }: Props) {
     setInLobby(t);
   };
 
-  // ===== Экран лобби =====
   if (inLobby) {
     return (
       <div className="space-y-4">
@@ -106,19 +109,18 @@ export default function OrganizerPage({ user }: Props) {
     );
   }
 
-  // ===== Экран сетки =====
   if (selectedTournament) {
     return (
       <TournamentBracketView
         tournament={selectedTournament}
         user={user}
+        isAdmin={admin}
         onBack={() => setSelectedTournament(null)}
         onJoin={() => handleJoin(selectedTournament)}
       />
     );
   }
 
-  // ===== Экран организатора =====
   if (selected) {
     return (
       <div className="space-y-4">
@@ -252,7 +254,6 @@ export default function OrganizerPage({ user }: Props) {
     );
   }
 
-  // ===== Список организаторов =====
   return (
     <div className="space-y-4">
       <div className="bg-gradient-to-br from-orange to-orange2 rounded-3xl p-5 shadow-orange relative overflow-hidden">
@@ -323,15 +324,16 @@ export default function OrganizerPage({ user }: Props) {
   );
 }
 
-// ===== Экран сетки турнира =====
 function TournamentBracketView({
   tournament,
   user,
+  isAdmin,
   onBack,
   onJoin,
 }: {
   tournament: Tournament;
   user: User;
+  isAdmin: boolean;
   onBack: () => void;
   onJoin: () => void;
 }) {
@@ -341,10 +343,11 @@ function TournamentBracketView({
   const [selectedTeam, setSelectedTeam] = useState<BracketTeam | null>(null);
   const [myTeamId, setMyTeamId] = useState<number | null>(null);
   const [myClanId, setMyClanId] = useState<number | null>(null);
+  const [matchTimeMap, setMatchTimeMap] = useState<Record<number, string | null>>({});
+  const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
 
   useEffect(() => {
     (async () => {
-      // Свежий clan_id из БД
       const { data: userData } = await supabase
         .from('users')
         .select('clan_id')
@@ -365,6 +368,12 @@ function TournamentBracketView({
         .order('id', { ascending: true });
 
       setMatchCount(rawMatches?.length || 0);
+
+      const tMap: Record<number, string | null> = {};
+      (rawMatches || []).forEach((m: any) => {
+        tMap[m.id] = m.scheduled_time || null;
+      });
+      setMatchTimeMap(tMap);
 
       if (!rawTeams || rawTeams.length === 0) {
         setLoading(false);
@@ -419,6 +428,18 @@ function TournamentBracketView({
     })();
   }, [tournament.id, user.user_id]);
 
+  const handleMatchClick = (match: BracketMatch) => {
+    if (!match.matchId) return;
+    const fullMatch = {
+      id: match.matchId,
+      team1: match.team1,
+      team2: match.team2,
+      map: null,
+      scheduled_time: matchTimeMap[match.matchId] || null,
+    };
+    setSelectedMatch(fullMatch);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -461,7 +482,9 @@ function TournamentBracketView({
         <BigBracket
           rounds={rounds}
           onTeamClick={(team) => setSelectedTeam(team)}
+          onMatchClick={handleMatchClick}
           myTeamId={myTeamId}
+          matchTimeMap={matchTimeMap}
         />
       )}
 
@@ -471,6 +494,17 @@ function TournamentBracketView({
           onClose={() => setSelectedTeam(null)}
         />
       )}
+
+      <AnimatePresence>
+        {selectedMatch && (
+          <MatchChat
+            match={selectedMatch}
+            user={user}
+            isAdmin={isAdmin}
+            onClose={() => setSelectedMatch(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -4,17 +4,15 @@ export async function getActiveTournaments() {
   const { data } = await supabase
     .from('tournaments')
     .select('id, name, sponsor_channel, status')
-    .eq('status', 'active')
     .order('created_at', { ascending: false });
   return data || [];
 }
 
-export async function getPendingMatches(tournamentId: number) {
+export async function getAllMatches(tournamentId: number) {
   const { data: matches } = await supabase
     .from('matches')
     .select('*')
     .eq('tournament_id', tournamentId)
-    .neq('status', 'done')
     .order('id', { ascending: true });
 
   if (!matches || matches.length === 0) return [];
@@ -89,6 +87,39 @@ export async function getTeamPlayers(teamId: number) {
   }));
 }
 
+// ===== Установить время матча =====
+export async function setMatchTime(matchId: number, isoTime: string | null) {
+  return await supabase
+    .from('matches')
+    .update({ scheduled_time: isoTime })
+    .eq('id', matchId);
+}
+
+// ===== Вызов админа =====
+export async function callAdmin(matchId: number, userId: number, reason: string) {
+  return await supabase.from('admin_calls').insert({
+    match_id: matchId,
+    user_id: userId,
+    reason,
+  });
+}
+
+export async function getOpenCalls() {
+  const { data } = await supabase
+    .from('admin_calls')
+    .select('*')
+    .eq('resolved', false)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function resolveCall(callId: number) {
+  return await supabase
+    .from('admin_calls')
+    .update({ resolved: true })
+    .eq('id', callId);
+}
+
 type PlayerStat = {
   user_id: number;
   nickname: string;
@@ -118,7 +149,6 @@ export async function saveMatchResult(params: {
     photoUrl, sponsorChannel, map,
   } = params;
 
-  // 1. Обновить матч
   await supabase
     .from('matches')
     .update({
@@ -131,10 +161,8 @@ export async function saveMatchResult(params: {
     })
     .eq('id', matchId);
 
-  // 2. Удалить старые stats
   await supabase.from('match_stats').delete().eq('match_id', matchId);
 
-  // 3. Найти MVP
   const allPlayers = [...team1Players, ...team2Players];
   let mvpId: number | null = null;
   let maxScore = -Infinity;
@@ -147,7 +175,6 @@ export async function saveMatchResult(params: {
     }
   });
 
-  // 4. Сохранить stats
   const rows = allPlayers.map((p) => ({
     match_id: matchId,
     user_id: p.user_id,
@@ -159,21 +186,14 @@ export async function saveMatchResult(params: {
   }));
   await supabase.from('match_stats').insert(rows);
 
-  // 5. Обновить статистику игроков
   for (const p of allPlayers) {
     if (p.notPresent) continue;
     const { data: u } = await supabase
       .from('users')
-      .select('kills, deaths, matches_played, wins, losses')
+      .select('kills, deaths, matches_played')
       .eq('user_id', p.user_id)
       .maybeSingle();
     if (!u) continue;
-
-    const isWinner = [team1Players, team2Players]
-      .findIndex((arr) => arr.some((x) => x.user_id === p.user_id)) === 0
-      ? winnerTeamId === params.winnerTeamId // placeholder
-      : false;
-
     await supabase
       .from('users')
       .update({
@@ -184,8 +204,7 @@ export async function saveMatchResult(params: {
       .eq('user_id', p.user_id);
   }
 
-  // 6. Обновить wins/losses у команды-победителя
-  const winnerTeam = winnerTeamId === params.winnerTeamId ? winnerTeamId : winnerTeamId;
+  // Клан-победитель
   const { data: wt } = await supabase
     .from('teams')
     .select('clan_id')
@@ -208,7 +227,6 @@ export async function saveMatchResult(params: {
     }
   }
 
-  // 7. Пост в Telegram канал через бота
   const mvpPlayer = allPlayers.find((p) => p.user_id === mvpId);
   const lines = [
     `🏆 <b>${team1Name}</b> ${scoreCt} : ${scoreT} <b>${team2Name}</b>`,
@@ -230,4 +248,15 @@ export async function saveMatchResult(params: {
   });
 
   return { mvpId };
+}
+
+// ===== Автораспределение времени 17:00-22:00 =====
+export function generateRandomTime(): string {
+  const now = new Date();
+  const hour = 17 + Math.floor(Math.random() * 6); // 17..22
+  const minute = Math.floor(Math.random() * 60);
+  const d = new Date(now);
+  d.setHours(hour, minute, 0, 0);
+  if (d < now) d.setDate(d.getDate() + 1);
+  return d.toISOString();
 }

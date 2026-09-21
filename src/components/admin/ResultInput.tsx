@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Trophy, Save, UserX, Check, AlertCircle, ArrowLeftRight } from 'lucide-react';
 import {
-  getActiveTournaments, getPendingMatches, getTeamPlayers, saveMatchResult,
+  ArrowLeft, Trophy, Save, UserX, Check, AlertCircle,
+  ArrowLeftRight, Clock, CheckCircle, XCircle,
+} from 'lucide-react';
+import {
+  getActiveTournaments, getAllMatches, getTeamPlayers, saveMatchResult, setMatchTime,
+  generateRandomTime,
 } from '../../lib/match';
 import { haptic, hapticSuccess, hapticError } from '../../lib/telegram';
 
@@ -15,6 +19,8 @@ type PlayerStat = {
   notPresent: boolean;
 };
 
+type Filter = 'active' | 'done' | 'all';
+
 export default function ResultInput() {
   const [view, setView] = useState<'list' | 'form'>('list');
   const [tournaments, setTournaments] = useState<any[]>([]);
@@ -22,6 +28,7 @@ export default function ResultInput() {
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [filter, setFilter] = useState<Filter>('active');
 
   useEffect(() => {
     (async () => {
@@ -34,7 +41,7 @@ export default function ResultInput() {
   const openTournament = async (t: any) => {
     setSelectedTournament(t);
     setLoading(true);
-    const m = await getPendingMatches(t.id);
+    const m = await getAllMatches(t.id);
     setMatches(m);
     setLoading(false);
   };
@@ -42,6 +49,12 @@ export default function ResultInput() {
   const openMatch = (m: any) => {
     setSelectedMatch(m);
     setView('form');
+  };
+
+  const handleSetTime = async (m: any, isoTime: string | null) => {
+    await setMatchTime(m.id, isoTime);
+    hapticSuccess();
+    openTournament(selectedTournament);
   };
 
   if (view === 'form' && selectedMatch) {
@@ -60,6 +73,12 @@ export default function ResultInput() {
   }
 
   if (selectedTournament) {
+    const filtered = matches.filter((m) => {
+      if (filter === 'active') return m.status !== 'done';
+      if (filter === 'done') return m.status === 'done';
+      return true;
+    });
+
     return (
       <div className="space-y-3">
         <button
@@ -71,29 +90,96 @@ export default function ResultInput() {
 
         <div className="text-black font-black text-sm">{selectedTournament.name}</div>
 
+        {/* Фильтр */}
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={() => setFilter('active')}
+            className={`py-2 rounded-xl text-xs font-bold ${
+              filter === 'active' ? 'bg-orange text-white' : 'bg-bg2 border border-border text-muted'
+            }`}
+          >
+            Активные
+          </button>
+          <button
+            onClick={() => setFilter('done')}
+            className={`py-2 rounded-xl text-xs font-bold ${
+              filter === 'done' ? 'bg-orange text-white' : 'bg-bg2 border border-border text-muted'
+            }`}
+          >
+            Завершённые
+          </button>
+          <button
+            onClick={() => setFilter('all')}
+            className={`py-2 rounded-xl text-xs font-bold ${
+              filter === 'all' ? 'bg-orange text-white' : 'bg-bg2 border border-border text-muted'
+            }`}
+          >
+            Все
+          </button>
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="w-6 h-6 border-2 border-orange/20 border-t-orange rounded-full animate-spin" />
           </div>
-        ) : matches.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="bg-bg2 border border-dashed border-border2 rounded-xl p-6 text-center text-muted text-xs">
-            Нет незавершённых матчей
+            Матчей нет. Создай через SQL.
           </div>
         ) : (
           <div className="space-y-2">
-            {matches.map((m: any) => (
-              <button
+            {filtered.map((m: any) => (
+              <div
                 key={m.id}
-                onClick={() => openMatch(m)}
-                className="w-full bg-card border border-border rounded-xl p-3 text-left hover:border-orange/40 transition-colors"
+                className="bg-card border border-border rounded-xl p-3"
               >
-                <div className="text-black font-bold text-sm">
-                  {m.team1?.clan_name || 'Клан'} vs {m.team2?.clan_name || 'Клан'}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-black font-bold text-sm">
+                    {m.team1?.clan_name || '?'} vs {m.team2?.clan_name || '?'}
+                  </div>
+                  {m.status === 'done' ? (
+                    <CheckCircle className="w-4 h-4 text-success" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-muted" />
+                  )}
                 </div>
-                <div className="text-muted text-[10px] mt-0.5">
-                  Матч #{m.id} · {m.map || 'без карты'} · {m.status}
+
+                <div className="flex items-center gap-2 mb-2 text-[10px] text-muted">
+                  <Clock className="w-3 h-3" />
+                  {m.scheduled_time
+                    ? new Date(m.scheduled_time).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                    : 'Время не назначено'}
+                  {m.map ? ` · ${m.map}` : ''}
                 </div>
-              </button>
+
+                {/* Кнопки времени */}
+                {m.status !== 'done' && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    <button
+                      onClick={() => handleSetTime(m, generateRandomTime())}
+                      className="text-[10px] bg-orange/10 border border-orange/30 text-orange rounded-lg px-2 py-1 font-bold"
+                    >
+                      🎲 Случайное 17-22
+                    </button>
+                    <input
+                      type="datetime-local"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleSetTime(m, new Date(e.target.value).toISOString());
+                        }
+                      }}
+                      className="text-[10px] bg-bg2 border border-border rounded-lg px-2 py-1 text-black"
+                    />
+                  </div>
+                )}
+
+                <button
+                  onClick={() => openMatch(m)}
+                  className="w-full bg-orange text-white rounded-lg py-2 text-xs font-bold"
+                >
+                  {m.status === 'done' ? 'Просмотр результата' : 'Ввести результат'}
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -113,7 +199,7 @@ export default function ResultInput() {
     <div className="space-y-2">
       {tournaments.length === 0 ? (
         <div className="bg-bg2 border border-dashed border-border2 rounded-xl p-6 text-center text-muted text-xs">
-          Нет активных турниров
+          Нет турниров
         </div>
       ) : (
         tournaments.map((t) => (
@@ -128,7 +214,7 @@ export default function ResultInput() {
             <div className="flex-1 min-w-0">
               <div className="text-black font-bold text-sm truncate">{t.name}</div>
               <div className="text-muted text-[10px]">
-                {t.sponsor_channel || 'спонсор не указан'}
+                {t.sponsor_channel || 'спонсор не указан'} · {t.status}
               </div>
             </div>
           </button>
@@ -149,10 +235,8 @@ function MatchForm({
 }) {
   const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
-  const [photoUrl, setPhotoUrl] = useState('');
+  const [photoUrl, setPhotoUrl] = useState(match.photo_url || '');
   const [mapName, setMapName] = useState(match.map || '');
-
-  // Кто CT, кто T. По умолчанию: team1 = CT, team2 = T
   const [team1Side, setTeam1Side] = useState<'CT' | 'T'>('CT');
 
   const [team1Players, setTeam1Players] = useState<PlayerStat[]>([]);
@@ -226,10 +310,7 @@ function MatchForm({
       hapticError(); setError('Ничья не допускается'); return;
     }
 
-    // Победитель — у кого больше счёт
     const winnerTeamId = score1 > score2 ? match.team1_id : match.team2_id;
-
-    // Счёт CT и T в зависимости от того, кто CT
     const scoreCt = team1Side === 'CT' ? score1 : score2;
     const scoreT = team1Side === 'CT' ? score2 : score1;
 
@@ -251,7 +332,6 @@ function MatchForm({
         sponsorChannel: tournament.sponsor_channel,
         map: mapName || null,
       });
-
       hapticSuccess();
       onSaved();
     } catch (e: any) {
@@ -271,10 +351,7 @@ function MatchForm({
 
   return (
     <div className="space-y-4">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-orange text-xs font-bold"
-      >
+      <button onClick={onBack} className="flex items-center gap-2 text-orange text-xs font-bold">
         <ArrowLeft className="w-3 h-3" /> Назад
       </button>
 
@@ -287,123 +364,58 @@ function MatchForm({
         </div>
       </div>
 
-      {/* ===== ВЫБОР СТОРОН ===== */}
+      {/* Стороны CT/T */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="text-muted text-[10px] uppercase tracking-widest font-bold">
-            Стороны (CT/T)
-          </div>
+          <div className="text-muted text-[10px] uppercase tracking-widest font-bold">Стороны (CT/T)</div>
           <button
             onClick={swapSides}
-            className="flex items-center gap-1.5 text-[10px] font-bold text-orange bg-orange/10 border border-orange/30 rounded-lg px-2.5 py-1.5 hover:bg-orange/20 transition-colors"
+            className="flex items-center gap-1.5 text-[10px] font-bold text-orange bg-orange/10 border border-orange/30 rounded-lg px-2.5 py-1.5"
           >
-            <ArrowLeftRight className="w-3 h-3" />
-            Поменять
+            <ArrowLeftRight className="w-3 h-3" /> Поменять
           </button>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className={`rounded-xl p-3 text-center border-2 transition-colors ${
-            team1Side === 'CT' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'
-          }`}>
-            <div className="text-[10px] font-bold uppercase tracking-widest mb-1 text-muted">
-              {match.team1?.clan_name}
-            </div>
-            <div className={`text-lg font-black ${
-              team1Side === 'CT' ? 'text-blue-600' : 'text-red-600'
-            }`}>
-              {team1Side}
-            </div>
+          <div className={`rounded-xl p-3 text-center border-2 ${team1Side === 'CT' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'}`}>
+            <div className="text-[10px] font-bold uppercase tracking-widest mb-1 text-muted">{match.team1?.clan_name}</div>
+            <div className={`text-lg font-black ${team1Side === 'CT' ? 'text-blue-600' : 'text-red-600'}`}>{team1Side}</div>
           </div>
-
-          <div className={`rounded-xl p-3 text-center border-2 transition-colors ${
-            team2Side === 'CT' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'
-          }`}>
-            <div className="text-[10px] font-bold uppercase tracking-widest mb-1 text-muted">
-              {match.team2?.clan_name}
-            </div>
-            <div className={`text-lg font-black ${
-              team2Side === 'CT' ? 'text-blue-600' : 'text-red-600'
-            }`}>
-              {team2Side}
-            </div>
+          <div className={`rounded-xl p-3 text-center border-2 ${team2Side === 'CT' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'}`}>
+            <div className="text-[10px] font-bold uppercase tracking-widest mb-1 text-muted">{match.team2?.clan_name}</div>
+            <div className={`text-lg font-black ${team2Side === 'CT' ? 'text-blue-600' : 'text-red-600'}`}>{team2Side}</div>
           </div>
         </div>
-
-        <p className="text-muted text-[10px] mt-3 text-center">
-          Система не выбирает стороны — ты решаешь, кто CT, кто T
-        </p>
       </div>
 
-      {/* ===== СЧЁТ ===== */}
+      {/* Счёт */}
       <div className="bg-card border border-border rounded-2xl p-4">
-        <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-3">
-          Счёт
-        </div>
+        <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-3">Счёт</div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="text-black font-bold text-xs mb-1.5 text-center truncate">
-              {match.team1?.clan_name}
-            </div>
-            <input
-              type="number"
-              value={scoreA}
-              onChange={(e) => setScoreA(e.target.value)}
-              placeholder="13"
-              className="w-full bg-bg2 border border-border rounded-xl px-3 py-3 text-black text-center font-black text-lg"
-            />
+            <div className="text-black font-bold text-xs mb-1.5 text-center truncate">{match.team1?.clan_name}</div>
+            <input type="number" value={scoreA} onChange={(e) => setScoreA(e.target.value)} placeholder="13" className="w-full bg-bg2 border border-border rounded-xl px-3 py-3 text-black text-center font-black text-lg" />
           </div>
           <div>
-            <div className="text-black font-bold text-xs mb-1.5 text-center truncate">
-              {match.team2?.clan_name}
-            </div>
-            <input
-              type="number"
-              value={scoreB}
-              onChange={(e) => setScoreB(e.target.value)}
-              placeholder="11"
-              className="w-full bg-bg2 border border-border rounded-xl px-3 py-3 text-black text-center font-black text-lg"
-            />
+            <div className="text-black font-bold text-xs mb-1.5 text-center truncate">{match.team2?.clan_name}</div>
+            <input type="number" value={scoreB} onChange={(e) => setScoreB(e.target.value)} placeholder="11" className="w-full bg-bg2 border border-border rounded-xl px-3 py-3 text-black text-center font-black text-lg" />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-3">
           <div>
             <label className="text-muted text-[10px] font-bold block mb-1">Карта</label>
-            <input
-              value={mapName}
-              onChange={(e) => setMapName(e.target.value)}
-              placeholder="Sandstone"
-              className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-xs"
-            />
+            <input value={mapName} onChange={(e) => setMapName(e.target.value)} placeholder="Sandstone" className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-xs" />
           </div>
           <div>
             <label className="text-muted text-[10px] font-bold block mb-1">Фото (URL)</label>
-            <input
-              value={photoUrl}
-              onChange={(e) => setPhotoUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-xs"
-            />
+            <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className="w-full bg-bg2 border border-border rounded-xl px-3 py-2 text-black text-xs" />
           </div>
         </div>
       </div>
 
-      {/* Статы team1 */}
-      <PlayerStatsBlock
-        teamName={`${match.team1?.clan_name} (${team1Side})`}
-        players={team1Players}
-        onUpdate={(idx, field, value) => updateStat('t1', idx, field, value)}
-        onParse={parseStat}
-      />
-
-      {/* Статы team2 */}
-      <PlayerStatsBlock
-        teamName={`${match.team2?.clan_name} (${team2Side})`}
-        players={team2Players}
-        onUpdate={(idx, field, value) => updateStat('t2', idx, field, value)}
-        onParse={parseStat}
-      />
+      <PlayerStatsBlock teamName={`${match.team1?.clan_name} (${team1Side})`} players={team1Players} onUpdate={(idx, field, value) => updateStat('t1', idx, field, value)} onParse={parseStat} />
+      <PlayerStatsBlock teamName={`${match.team2?.clan_name} (${team2Side})`} players={team2Players} onUpdate={(idx, field, value) => updateStat('t2', idx, field, value)} onParse={parseStat} />
 
       {error && (
         <div className="bg-danger/10 border border-danger/30 rounded-xl p-3 text-xs text-danger font-bold flex items-center gap-2">
@@ -441,7 +453,6 @@ function PlayerStatsBlock({
     const copy = [...inputs];
     copy[idx] = text;
     setInputs(copy);
-
     const parsed = onParse(text);
     if (parsed) {
       onUpdate(idx, 'kills', parsed.k);
@@ -452,25 +463,13 @@ function PlayerStatsBlock({
 
   return (
     <div className="bg-card border border-border rounded-2xl p-4">
-      <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-3">
-        {teamName}
-      </div>
+      <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-3">{teamName}</div>
 
       <div className="space-y-2">
         {players.map((p, idx) => (
-          <div
-            key={p.user_id}
-            className={`rounded-xl p-2.5 border transition-colors ${
-              p.notPresent
-                ? 'bg-bg2/50 border-dashed border-border2'
-                : 'bg-bg2 border-border'
-            }`}
-          >
+          <div key={p.user_id} className={`rounded-xl p-2.5 border transition-colors ${p.notPresent ? 'bg-bg2/50 border-dashed border-border2' : 'bg-bg2 border-border'}`}>
             <div className="flex items-center gap-2 mb-2">
-              <div className="text-black text-xs font-bold flex-1 truncate">
-                {p.nickname}
-              </div>
-
+              <div className="text-black text-xs font-bold flex-1 truncate">{p.nickname}</div>
               <button
                 onClick={() => {
                   onUpdate(idx, 'notPresent', !p.notPresent);
@@ -480,11 +479,7 @@ function PlayerStatsBlock({
                     onUpdate(idx, 'assists', 0);
                   }
                 }}
-                className={`text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition-colors ${
-                  p.notPresent
-                    ? 'bg-danger/20 text-danger'
-                    : 'bg-bg3 text-muted hover:text-black'
-                }`}
+                className={`text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 ${p.notPresent ? 'bg-danger/20 text-danger' : 'bg-bg3 text-muted'}`}
               >
                 <UserX className="w-3 h-3" />
                 {p.notPresent ? 'Не было' : 'Был'}

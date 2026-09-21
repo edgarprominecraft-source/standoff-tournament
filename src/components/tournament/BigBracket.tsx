@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Trophy, Swords, Shield } from 'lucide-react';
+import { Trophy, Swords, Shield, Clock, MessageCircle } from 'lucide-react';
 import type { BracketMatch, BracketTeam } from '../../lib/bracket';
 import { roundName } from '../../lib/bracket';
 
@@ -8,6 +8,7 @@ type Props = {
   onMatchClick?: (match: BracketMatch) => void;
   onTeamClick?: (team: BracketTeam) => void;
   myTeamId?: number | null;
+  matchTimeMap?: Record<number, string | null>;
 };
 
 function getRoundLabel(rIdx: number, totalRounds: number): string {
@@ -20,7 +21,13 @@ function getRoundLabel(rIdx: number, totalRounds: number): string {
   return roundName(rIdx + 1, totalRounds);
 }
 
-export default function BigBracket({ rounds, onMatchClick, onTeamClick, myTeamId }: Props) {
+export default function BigBracket({
+  rounds,
+  onMatchClick,
+  onTeamClick,
+  myTeamId,
+  matchTimeMap = {},
+}: Props) {
   if (rounds.length === 0) {
     return (
       <div className="bg-card border border-border rounded-3xl p-8 text-center shadow-card">
@@ -50,7 +57,7 @@ export default function BigBracket({ rounds, onMatchClick, onTeamClick, myTeamId
   return (
     <div className="bg-white rounded-3xl border border-border p-4 shadow-card overflow-x-auto">
       <div className="flex items-stretch min-w-max gap-2">
-        {/* ===== ЛЕВАЯ СТОРОНА ===== */}
+        {/* ЛЕВАЯ СТОРОНА */}
         <div className="flex gap-2">
           {leftRounds.map((r) => (
             <BracketColumn
@@ -61,11 +68,12 @@ export default function BigBracket({ rounds, onMatchClick, onTeamClick, myTeamId
               onMatchClick={onMatchClick}
               onTeamClick={onTeamClick}
               myTeamId={myTeamId}
+              matchTimeMap={matchTimeMap}
             />
           ))}
         </div>
 
-        {/* ===== ЦЕНТР ===== */}
+        {/* ЦЕНТР: ФИНАЛ + ЧЕМПИОН */}
         <div className="flex flex-col justify-center gap-3 px-2">
           <div className="text-center">
             <div className="text-orange text-[11px] font-black uppercase tracking-widest">
@@ -85,6 +93,11 @@ export default function BigBracket({ rounds, onMatchClick, onTeamClick, myTeamId
               }
               onTeamClick={onTeamClick}
               myTeamId={myTeamId}
+              scheduledTime={
+                finalMatch?.matchId
+                  ? matchTimeMap[finalMatch.matchId] ?? null
+                  : null
+              }
             />
           </div>
 
@@ -109,7 +122,7 @@ export default function BigBracket({ rounds, onMatchClick, onTeamClick, myTeamId
           </motion.div>
         </div>
 
-        {/* ===== ПРАВАЯ СТОРОНА ===== */}
+        {/* ПРАВАЯ СТОРОНА */}
         <div className="flex gap-2">
           {rightRoundsOrdered.map((r) => (
             <BracketColumn
@@ -120,6 +133,7 @@ export default function BigBracket({ rounds, onMatchClick, onTeamClick, myTeamId
               onMatchClick={onMatchClick}
               onTeamClick={onTeamClick}
               myTeamId={myTeamId}
+              matchTimeMap={matchTimeMap}
             />
           ))}
         </div>
@@ -135,6 +149,7 @@ function BracketColumn({
   onMatchClick,
   onTeamClick,
   myTeamId,
+  matchTimeMap,
 }: {
   matches: BracketMatch[];
   label: string;
@@ -142,6 +157,7 @@ function BracketColumn({
   onMatchClick?: (match: BracketMatch) => void;
   onTeamClick?: (team: BracketTeam) => void;
   myTeamId?: number | null;
+  matchTimeMap: Record<number, string | null>;
 }) {
   return (
     <div className="flex-shrink-0 flex flex-col" style={{ width: 200 }}>
@@ -163,6 +179,7 @@ function BracketColumn({
               onClick={m.matchId && onMatchClick ? () => onMatchClick(m) : undefined}
               onTeamClick={onTeamClick}
               myTeamId={myTeamId}
+              scheduledTime={m.matchId ? matchTimeMap[m.matchId] ?? null : null}
             />
             <div
               className="absolute bg-orange/40"
@@ -186,12 +203,14 @@ function MatchCard({
   onClick,
   onTeamClick,
   myTeamId,
+  scheduledTime,
 }: {
   match: BracketMatch | undefined;
   label: string;
   onClick?: () => void;
   onTeamClick?: (team: BracketTeam) => void;
   myTeamId?: number | null;
+  scheduledTime: string | null;
 }) {
   if (!match) {
     return (
@@ -205,15 +224,28 @@ function MatchCard({
     );
   }
 
+  const hasBothTeams = match.team1 && match.team2;
+  const scheduledStr = scheduledTime
+    ? new Date(scheduledTime).toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
   return (
     <div
-      className={`w-full bg-white border rounded-xl p-2 transition-all ${
+      className={`w-full bg-white border rounded-xl p-2 transition-all relative ${
         match.winner ? 'border-orange/60 bg-orange/5' : 'border-border'
-      }`}
+      } ${onClick ? 'cursor-pointer hover:border-orange' : ''}`}
+      onClick={onClick}
     >
-      <div className="text-[9px] text-muted font-bold mb-1 flex items-center gap-1">
-        <Swords className="w-2.5 h-2.5" />
-        {label}
+      <div className="flex items-center justify-between text-[9px] text-muted font-bold mb-1">
+        <div className="flex items-center gap-1">
+          <Swords className="w-2.5 h-2.5" />
+          {label}
+        </div>
+        {onClick && hasBothTeams && (
+          <MessageCircle className="w-2.5 h-2.5 text-orange" />
+        )}
       </div>
 
       <TeamRow
@@ -231,6 +263,14 @@ function MatchCard({
         myTeamId={myTeamId}
         onTeamClick={onTeamClick}
       />
+
+      {/* Время матча */}
+      {scheduledStr && hasBothTeams && (
+        <div className="mt-2 pt-2 border-t border-border/60 flex items-center justify-center gap-1 text-[9px] text-orange font-bold">
+          <Clock className="w-2.5 h-2.5" />
+          {scheduledStr}
+        </div>
+      )}
     </div>
   );
 }
@@ -263,7 +303,10 @@ function TeamRow({
 
   return (
     <button
-      onClick={() => onTeamClick?.(team)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onTeamClick?.(team);
+      }}
       className={`w-full flex items-center gap-1.5 rounded-md px-1 py-0.5 -mx-1 transition-all text-left ${
         isMine
           ? 'bg-orange/15 border border-orange/40'
