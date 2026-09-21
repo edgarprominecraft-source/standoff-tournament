@@ -274,13 +274,6 @@ export async function createBracketMatches(tournamentId: number): Promise<{ ok: 
   if (tErr) return { ok: false, error: tErr.message };
   if (!teams || teams.length < 2) return { ok: false, error: 'Нужно минимум 2 команды' };
 
-  // Случайное перемешивание команд (Fisher-Yates)
-  const shuffled = [...teams];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-
   // 2. Проверяем, что матчей ещё нет
   const { data: existing } = await supabase
     .from('matches')
@@ -294,7 +287,7 @@ export async function createBracketMatches(tournamentId: number): Promise<{ ok: 
 
   // 3. Сетка до степени двойки
   const size = Math.max(2, Math.pow(2, Math.ceil(Math.log2(teams.length))));
-  const padded: (number | null)[] = shuffled.map((t: any) => t.id);
+  const padded: (number | null)[] = teams.map((t: any) => t.id);
   while (padded.length < size) padded.push(null);
 
   // 4. Первый раунд — пары команд
