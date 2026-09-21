@@ -176,3 +176,47 @@ body.modal-open .audio-btn {
   pointer-events: none !important;
   transition: opacity 0.15s ease;
 }
+
+/* ==== Размер шрифта (масштабируется через --app-font-scale) ==== */
+html {
+  font-size: calc(16px * var(--app-font-scale, 1));
+}
+
+/* ==== Тёмная тема ==== */
+html.dark body {
+  background: #0a0410 !important;
+  color: #f5f5f5;
+}
+
+html.dark .bg-white,
+html.dark .bg-card {
+  background-color: #1a0f20 !important;
+}
+
+html.dark .bg-bg2 {
+  background-color: #150a18 !important;
+}
+
+html.dark .bg-bg3 {
+  background-color: #20121e !important;
+}
+
+html.dark .text-black {
+  color: #f5f5f5 !important;
+}
+
+html.dark .text-text2 {
+  color: #d0d0d0 !important;
+}
+
+html.dark .border-border {
+  border-color: #3a1f2e !important;
+}
+
+html.dark header.bg-white\/95 {
+  background-color: rgba(26, 15, 32, 0.95) !important;
+}
+
+html.dark nav.bg-white {
+  background-color: #1a0f20 !important;
+}

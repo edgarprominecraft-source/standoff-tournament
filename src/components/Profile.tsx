@@ -10,6 +10,9 @@ import { haptic, hapticSuccess, hapticError } from '../lib/telegram';
 import { PROFILE_BANNERS, updateProfile, uploadAvatar, uploadBanner } from '../lib/profile';
 import RankBadge from './RankBadge';
 import FriendsModal from './FriendsModal';
+import SettingsModal from './SettingsModal';
+import PrivacyModal from './PrivacyModal';
+import AboutModal from './AboutModal';
 
 type Props = {
   user: User;
@@ -28,6 +31,9 @@ export default function Profile({ user, setUser }: Props) {
   const [showEditNick, setShowEditNick] = useState(false);
   const [showFullProfile, setShowFullProfile] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
+  const [showSettingsNew, setShowSettingsNew] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [stats, setStats] = useState({ matches: 0, wins: 0, losses: 0, kills: 0, deaths: 0 });
   const [friendsCount, setFriendsCount] = useState(0);
   const [clanName, setClanName] = useState<string | null>(null);
@@ -219,7 +225,7 @@ export default function Profile({ user, setUser }: Props) {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => { haptic('light'); setShowSettings(true); }}
+                onClick={() => { haptic('light'); setShowSettingsNew(true); }}
                 className="w-9 h-9 rounded-xl bg-bg2 border border-border flex items-center justify-center text-muted hover:border-orange/40 transition-colors"
               >
                 <SettingsIcon className="w-4 h-4" />
@@ -245,7 +251,7 @@ export default function Profile({ user, setUser }: Props) {
             </div>
           ) : (
             <button
-              onClick={() => { haptic('light'); setShowSettings(true); }}
+              onClick={() => { haptic('light'); setShowSettingsNew(true); }}
               className="text-orange text-[11px] font-bold underline"
             >
               Указать Standoff ID →
@@ -312,6 +318,27 @@ export default function Profile({ user, setUser }: Props) {
       <AnimatePresence>
         {showFriends && (
           <FriendsModal userId={user.user_id} onClose={() => setShowFriends(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showSettingsNew && (
+          <SettingsModal
+            onClose={() => setShowSettingsNew(false)}
+            onOpenPrivacy={() => { setShowSettingsNew(false); setShowPrivacy(true); }}
+            onOpenAbout={() => { setShowSettingsNew(false); setShowAbout(true); }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPrivacy && (
+          <PrivacyModal onClose={() => setShowPrivacy(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAbout && (
+          <AboutModal onClose={() => setShowAbout(false)} />
         )}
       </AnimatePresence>
 
