@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User as UserIcon, Users, Building2, BarChart3, Info as InfoIcon } from 'lucide-react';
+import { User as UserIcon, Users, Building2, BarChart3, Info as InfoIcon, Crown } from 'lucide-react';
 import { supabase, type User } from './supabase';
 import { initTelegram, getTelegramUser, haptic } from './lib/telegram';
+import { isAdmin } from './lib/admin';
 import Profile from './components/Profile';
 import Clan from './components/Clan';
 import Rating from './components/Rating';
 import Info from './components/Info';
 import OrganizerPage from './components/OrganizerPage';
+import AdminPanel from './components/admin/AdminPanel';
+import Notifications from './components/Notifications';
 
 type Tab = 'profile' | 'clan' | 'organizers' | 'rating' | 'info';
 
@@ -38,6 +41,8 @@ export default function App() {
   const [standoffId, setStandoffId] = useState('');
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [admin, setAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     initTelegram();
@@ -49,7 +54,12 @@ export default function App() {
         userId = tgUser.id;
         const { data: existing } = await supabase
           .from('users').select('*').eq('user_id', userId).maybeSingle();
-        if (existing) { setUser(existing as User); setLoading(false); return; }
+        if (existing) {
+          setUser(existing as User);
+          setAdmin(await isAdmin(userId));
+          setLoading(false);
+          return;
+        }
         const { data: created, error: insErr } = await supabase
           .from('users')
           .insert({
@@ -60,21 +70,38 @@ export default function App() {
             balance: 0,
             tokens: 10,
             trust_score: 100,
+            last_seen: new Date().toISOString(),
           })
           .select().single();
         if (insErr) setError(insErr.message);
-        else setUser(created as User);
+        else {
+          setUser(created as User);
+          setAdmin(await isAdmin(userId));
+        }
         setLoading(false);
         return;
       }
       userId = getAnonymousId();
       const { data: existing } = await supabase
         .from('users').select('*').eq('user_id', userId).maybeSingle();
-      if (existing) setUser(existing as User);
-      else setNeedRegister(true);
+      if (existing) {
+        setUser(existing as User);
+        setAdmin(await isAdmin(userId));
+      } else setNeedRegister(true);
       setLoading(false);
     })();
   }, []);
+
+  // Обновляем last_seen раз в минуту
+  useEffect(() => {
+    if (!user) return;
+    const update = () => {
+      supabase.from('users').update({ last_seen: new Date().toISOString() }).eq('user_id', user.user_id).then(() => {});
+    };
+    update();
+    const t = setInterval(update, 60000);
+    return () => clearInterval(t);
+  }, [user]);
 
   const submitRegistration = async () => {
     if (!nickname.trim() || nickname.length < 3) { setError('Ник минимум 3 символа'); return; }
@@ -92,6 +119,7 @@ export default function App() {
         tokens: 10,
         trust_score: 100,
         last_nick_change: new Date().toISOString(),
+        last_seen: new Date().toISOString(),
       })
       .select().single();
     setRegistering(false);
@@ -174,9 +202,22 @@ export default function App() {
       <header className="px-4 py-3 border-b border-border sticky top-0 bg-white/95 backdrop-blur z-10">
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="Standoff Cup" className="w-9 h-9" />
-          <h1 className="text-base font-black tracking-wider text-black">
+          <h1 className="text-base font-black tracking-wider text-black flex-1">
             STANDOFF <span className="text-orange">CUP</span>
           </h1>
+
+          {/* Колокольчик */}
+          <Notifications user={user} />
+
+          {/* Админка — только для админов */}
+          {admin && (
+            <button
+              onClick={() => { haptic('medium'); setShowAdmin(true); }}
+              className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center shadow-orange"
+            >
+              <Crown className="w-4 h-4 text-white" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -220,6 +261,13 @@ export default function App() {
           ))}
         </div>
       </nav>
+
+      {/* Админ-панель */}
+      <AnimatePresence>
+        {showAdmin && admin && (
+          <AdminPanel admin={user} onClose={() => setShowAdmin(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
