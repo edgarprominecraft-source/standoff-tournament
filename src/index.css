@@ -169,3 +169,10 @@ header {
 .role-admin, .role-moderator, .role-support {
   animation: halloween-glow 3s infinite;
 }
+
+/* Скрываем кнопки музыки, когда открыта модалка */
+body.modal-open .audio-btn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.15s ease;
+}

@@ -251,7 +251,7 @@ export default function HalloweenAudio() {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={togglePlay}
-        className="fixed bottom-24 right-4 z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+        className="audio-btn fixed bottom-24 right-4 z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
         style={{
           background: 'linear-gradient(135deg, #6a1b9a 0%, #2d0a4a 100%)',
           border: '1px solid rgba(255, 107, 0, 0.55)',
@@ -301,7 +301,7 @@ export default function HalloweenAudio() {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={() => setPanelOpen((v) => !v)}
-        className="fixed bottom-24 right-[68px] z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+        className="audio-btn fixed bottom-24 right-[68px] z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
         style={{
           background: 'linear-gradient(135deg, #2d0a4a 0%, #6a1b9a 100%)',
           border: '1px solid rgba(255, 107, 0, 0.4)',
