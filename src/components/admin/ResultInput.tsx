@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ArrowLeft, Trophy, Save, UserX, Check, AlertCircle,
-} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Trophy, Save, UserX, Check, AlertCircle, ArrowLeftRight } from 'lucide-react';
 import {
   getActiveTournaments, getPendingMatches, getTeamPlayers, saveMatchResult,
 } from '../../lib/match';
@@ -41,7 +39,7 @@ export default function ResultInput() {
     setLoading(false);
   };
 
-  const openMatch = async (m: any) => {
+  const openMatch = (m: any) => {
     setSelectedMatch(m);
     setView('form');
   };
@@ -140,7 +138,7 @@ export default function ResultInput() {
   );
 }
 
-// ===== ФОРМА ВВОДА РЕЗУЛЬТАТА =====
+// ===== ФОРМА =====
 function MatchForm({
   match, tournament, onBack, onSaved,
 }: {
@@ -149,10 +147,13 @@ function MatchForm({
   onBack: () => void;
   onSaved: () => void;
 }) {
-  const [scoreCt, setScoreCt] = useState('');
-  const [scoreT, setScoreT] = useState('');
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [mapName, setMapName] = useState(match.map || '');
+
+  // Кто CT, кто T. По умолчанию: team1 = CT, team2 = T
+  const [team1Side, setTeam1Side] = useState<'CT' | 'T'>('CT');
 
   const [team1Players, setTeam1Players] = useState<PlayerStat[]>([]);
   const [team2Players, setTeam2Players] = useState<PlayerStat[]>([]);
@@ -183,6 +184,13 @@ function MatchForm({
     })();
   }, [match.id]);
 
+  const team2Side: 'CT' | 'T' = team1Side === 'CT' ? 'T' : 'CT';
+
+  const swapSides = () => {
+    haptic('light');
+    setTeam1Side((s) => (s === 'CT' ? 'T' : 'CT'));
+  };
+
   const updateStat = (
     team: 't1' | 't2',
     idx: number,
@@ -208,18 +216,22 @@ function MatchForm({
   const handleSave = async () => {
     setError(null);
 
-    const ct = parseInt(scoreCt, 10);
-    const t = parseInt(scoreT, 10);
+    const score1 = parseInt(scoreA, 10);
+    const score2 = parseInt(scoreB, 10);
 
-    if (isNaN(ct) || isNaN(t) || ct < 0 || t < 0) {
-      hapticError(); setError('Введи счёт CT и T'); return;
+    if (isNaN(score1) || isNaN(score2) || score1 < 0 || score2 < 0) {
+      hapticError(); setError('Введи счёт обеих команд'); return;
     }
-    if (ct === t) {
+    if (score1 === score2) {
       hapticError(); setError('Ничья не допускается'); return;
     }
 
-    // Победитель: у кого больше счёт (Team1 = CT, Team2 = T)
-    const winnerTeamId = ct > t ? match.team1_id : match.team2_id;
+    // Победитель — у кого больше счёт
+    const winnerTeamId = score1 > score2 ? match.team1_id : match.team2_id;
+
+    // Счёт CT и T в зависимости от того, кто CT
+    const scoreCt = team1Side === 'CT' ? score1 : score2;
+    const scoreT = team1Side === 'CT' ? score2 : score1;
 
     setSaving(true);
     haptic('medium');
@@ -228,8 +240,8 @@ function MatchForm({
       await saveMatchResult({
         matchId: match.id,
         tournamentId: tournament.id,
-        scoreCt: ct,
-        scoreT: t,
+        scoreCt,
+        scoreT,
         winnerTeamId,
         team1Name: match.team1?.clan_name || 'Команда 1',
         team2Name: match.team2?.clan_name || 'Команда 2',
@@ -266,7 +278,6 @@ function MatchForm({
         <ArrowLeft className="w-3 h-3" /> Назад
       </button>
 
-      {/* Команды */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">
           Матч #{match.id}
@@ -276,32 +287,80 @@ function MatchForm({
         </div>
       </div>
 
-      {/* Счёт */}
+      {/* ===== ВЫБОР СТОРОН ===== */}
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-muted text-[10px] uppercase tracking-widest font-bold">
+            Стороны (CT/T)
+          </div>
+          <button
+            onClick={swapSides}
+            className="flex items-center gap-1.5 text-[10px] font-bold text-orange bg-orange/10 border border-orange/30 rounded-lg px-2.5 py-1.5 hover:bg-orange/20 transition-colors"
+          >
+            <ArrowLeftRight className="w-3 h-3" />
+            Поменять
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className={`rounded-xl p-3 text-center border-2 transition-colors ${
+            team1Side === 'CT' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'
+          }`}>
+            <div className="text-[10px] font-bold uppercase tracking-widest mb-1 text-muted">
+              {match.team1?.clan_name}
+            </div>
+            <div className={`text-lg font-black ${
+              team1Side === 'CT' ? 'text-blue-600' : 'text-red-600'
+            }`}>
+              {team1Side}
+            </div>
+          </div>
+
+          <div className={`rounded-xl p-3 text-center border-2 transition-colors ${
+            team2Side === 'CT' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'
+          }`}>
+            <div className="text-[10px] font-bold uppercase tracking-widest mb-1 text-muted">
+              {match.team2?.clan_name}
+            </div>
+            <div className={`text-lg font-black ${
+              team2Side === 'CT' ? 'text-blue-600' : 'text-red-600'
+            }`}>
+              {team2Side}
+            </div>
+          </div>
+        </div>
+
+        <p className="text-muted text-[10px] mt-3 text-center">
+          Система не выбирает стороны — ты решаешь, кто CT, кто T
+        </p>
+      </div>
+
+      {/* ===== СЧЁТ ===== */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-3">
           Счёт
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="text-black font-bold text-xs mb-1.5 text-center">
-              {match.team1?.clan_name} (CT)
+            <div className="text-black font-bold text-xs mb-1.5 text-center truncate">
+              {match.team1?.clan_name}
             </div>
             <input
               type="number"
-              value={scoreCt}
-              onChange={(e) => setScoreCt(e.target.value)}
+              value={scoreA}
+              onChange={(e) => setScoreA(e.target.value)}
               placeholder="13"
               className="w-full bg-bg2 border border-border rounded-xl px-3 py-3 text-black text-center font-black text-lg"
             />
           </div>
           <div>
-            <div className="text-black font-bold text-xs mb-1.5 text-center">
-              {match.team2?.clan_name} (T)
+            <div className="text-black font-bold text-xs mb-1.5 text-center truncate">
+              {match.team2?.clan_name}
             </div>
             <input
               type="number"
-              value={scoreT}
-              onChange={(e) => setScoreT(e.target.value)}
+              value={scoreB}
+              onChange={(e) => setScoreB(e.target.value)}
               placeholder="11"
               className="w-full bg-bg2 border border-border rounded-xl px-3 py-3 text-black text-center font-black text-lg"
             />
@@ -330,17 +389,17 @@ function MatchForm({
         </div>
       </div>
 
-      {/* Статистика Team 1 */}
+      {/* Статы team1 */}
       <PlayerStatsBlock
-        teamName={`${match.team1?.clan_name} (CT)`}
+        teamName={`${match.team1?.clan_name} (${team1Side})`}
         players={team1Players}
         onUpdate={(idx, field, value) => updateStat('t1', idx, field, value)}
         onParse={parseStat}
       />
 
-      {/* Статистика Team 2 */}
+      {/* Статы team2 */}
       <PlayerStatsBlock
-        teamName={`${match.team2?.clan_name} (T)`}
+        teamName={`${match.team2?.clan_name} (${team2Side})`}
         players={team2Players}
         onUpdate={(idx, field, value) => updateStat('t2', idx, field, value)}
         onParse={parseStat}
@@ -399,9 +458,8 @@ function PlayerStatsBlock({
 
       <div className="space-y-2">
         {players.map((p, idx) => (
-          <motion.div
+          <div
             key={p.user_id}
-            layout
             className={`rounded-xl p-2.5 border transition-colors ${
               p.notPresent
                 ? 'bg-bg2/50 border-dashed border-border2'
@@ -450,7 +508,7 @@ function PlayerStatsBlock({
                 ) : null}
               </div>
             )}
-          </motion.div>
+          </div>
         ))}
       </div>
     </div>

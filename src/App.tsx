@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User as UserIcon, Users, Building2, BarChart3, Info as InfoIcon, Crown } from 'lucide-react';
+import { User as UserIcon, Users, Building2, BarChart3, Info as InfoIcon, Crown, Ban } from 'lucide-react';
 import { supabase, type User } from './supabase';
 import { initTelegram, getTelegramUser, haptic } from './lib/telegram';
 import { isAdmin } from './lib/admin';
@@ -92,9 +92,9 @@ export default function App() {
     })();
   }, []);
 
-  // Обновляем last_seen раз в минуту
+  // Обновление last_seen раз в минуту
   useEffect(() => {
-    if (!user) return;
+    if (!user || user.banned) return;
     const update = () => {
       supabase.from('users').update({ last_seen: new Date().toISOString() }).eq('user_id', user.user_id).then(() => {});
     };
@@ -140,6 +140,7 @@ export default function App() {
     );
   }
 
+  // ===== ЭКРАН РЕГИСТРАЦИИ =====
   if (needRegister) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-6 bg-pattern">
@@ -197,6 +198,53 @@ export default function App() {
     );
   }
 
+  // ===== ЭКРАН БАНА =====
+  if (user.banned) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-sm text-center"
+        >
+          <div className="flex justify-center mb-6">
+            <div className="w-24 h-24 rounded-3xl bg-danger/10 border-2 border-danger/40 flex items-center justify-center">
+              <Ban className="w-12 h-12 text-danger" strokeWidth={2} />
+            </div>
+          </div>
+
+          <h1 className="text-danger font-black text-2xl mb-2 uppercase tracking-wider">
+            Аккаунт заблокирован
+          </h1>
+
+          <div className="bg-card border border-border rounded-2xl p-5 mt-6 text-left">
+            <div className="text-muted text-[10px] uppercase tracking-widest font-bold mb-2">
+              Причина
+            </div>
+            <div className="text-black font-bold text-sm">
+              {user.ban_reason || 'Причина не указана'}
+            </div>
+          </div>
+
+          <div className="bg-orange/10 border border-orange/30 rounded-xl p-4 mt-4">
+            <p className="text-muted text-xs leading-relaxed">
+              Ты забанен и не можешь пользоваться сайтом. Оспорить бан можно в поддержке:{' '}
+              <a
+                href="https://t.me/HePastic"
+                target="_blank"
+                rel="noreferrer"
+                className="text-orange font-bold hover:underline"
+              >
+                @HePastic
+              </a>
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ===== ОСНОВНОЕ ПРИЛОЖЕНИЕ =====
   return (
     <div className="min-h-screen bg-bg">
       <header className="px-4 py-3 border-b border-border sticky top-0 bg-white/95 backdrop-blur z-10">
@@ -206,17 +254,17 @@ export default function App() {
             STANDOFF <span className="text-orange">CUP</span>
           </h1>
 
-          {/* Колокольчик */}
           <Notifications user={user} />
 
-          {/* Админка — только для админов */}
           {admin && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => { haptic('medium'); setShowAdmin(true); }}
               className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange to-orange2 flex items-center justify-center shadow-orange"
             >
               <Crown className="w-4 h-4 text-white" />
-            </button>
+            </motion.button>
           )}
         </div>
       </header>
@@ -262,7 +310,6 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Админ-панель */}
       <AnimatePresence>
         {showAdmin && admin && (
           <AdminPanel admin={user} onClose={() => setShowAdmin(false)} />

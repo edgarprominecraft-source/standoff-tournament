@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Coins, User as UserIcon, Camera, Check, X,
@@ -118,13 +118,13 @@ export default function Profile({ user, setUser }: Props) {
     if (!user.has_premium) {
       hapticError(); setMsg('Только для Premium. Оформи у @HePastic'); return;
     }
-    if ((user.balance || 0) < BANNER_PRICE) {
+    if (!user.has_premium && (user.balance || 0) < BANNER_PRICE) {
       hapticError(); setMsg(`Нужно ${BANNER_PRICE} монет`); return;
     }
     if (file.size > 5 * 1024 * 1024) {
       hapticError(); setMsg('Файл макс 5MB'); return;
     }
-    if (!confirm(`Списать ${BANNER_PRICE} монет?`)) return;
+    if (!user.has_premium && !confirm(`Списать ${BANNER_PRICE} монет?`)) return;
 
     haptic('medium');
     setSaving(true);
@@ -135,7 +135,7 @@ export default function Profile({ user, setUser }: Props) {
     const { data, error } = await updateProfile(user.user_id, {
       custom_banner_url: url,
       banner_url: null,
-      balance: (user.balance || 0) - BANNER_PRICE,
+      balance: user.has_premium ? (user.balance || 0) : (user.balance || 0) - BANNER_PRICE,
     });
 
     setSaving(false);
@@ -329,7 +329,7 @@ export default function Profile({ user, setUser }: Props) {
                   <Lock className="w-6 h-6 text-orange mx-auto mb-2" />
                   <div className="text-black font-bold text-sm mb-1">Только с Premium</div>
                   <p className="text-muted text-xs leading-relaxed">
-                    Смена фона доступна только с подпиской. Оформи у @HePastic
+                    Смена фона — только с Premium. Оформи у @HePastic
                   </p>
                 </div>
               </div>
@@ -357,7 +357,7 @@ export default function Profile({ user, setUser }: Props) {
                       Загрузить фото
                     </button>
                     <div className="text-muted text-[10px] mt-1.5 text-center">
-                      {BANNER_PRICE} 💰 · 5 МБ
+                      user.has_premium ? 'Бесплатно · 5 МБ' : '{BANNER_PRICE} 💰 · 5 МБ'
                     </div>
                   </div>
                 </div>
