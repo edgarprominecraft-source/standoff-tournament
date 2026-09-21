@@ -11,6 +11,8 @@ import Info from './components/Info';
 import OrganizerPage from './components/OrganizerPage';
 import AdminPanel from './components/admin/AdminPanel';
 import Notifications from './components/Notifications';
+import HalloweenBackground from './components/HalloweenBackground';
+import HalloweenAudio from './components/HalloweenAudio';
 
 type Tab = 'profile' | 'clan' | 'organizers' | 'rating' | 'info';
 
@@ -246,7 +248,10 @@ export default function App() {
 
   // ===== ОСНОВНОЕ ПРИЛОЖЕНИЕ =====
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="min-h-screen bg-transparent relative">
+      <HalloweenBackground />
+      <HalloweenAudio />
+      <div className="relative z-10">
       <header className="px-4 py-3 border-b border-border sticky top-0 bg-white/95 backdrop-blur z-10">
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="Standoff Cup" className="w-9 h-9" />
@@ -315,6 +320,7 @@ export default function App() {
           <AdminPanel admin={user} onClose={() => setShowAdmin(false)} />
         )}
       </AnimatePresence>
+    </div>
     </div>
   );
 }
